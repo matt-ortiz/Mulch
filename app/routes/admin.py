@@ -1945,31 +1945,27 @@ def view_routes():
 def optimize_with_graphhopper(orders, settings):
     """Optimize route using local GraphHopper instance"""
     
-    # Start with school location
-    points = [{
-        'points': [{
-            'lat': settings.school_latitude,
-            'lng': settings.school_longitude
-        }],
-        'vehicle_id': 'mulch_truck'
-    }]
+    # Create list of points starting with school
+    points = [
+        [settings.school_longitude, settings.school_latitude]  # GraphHopper expects [lng, lat]
+    ]
 
     # Add delivery points
     for order in orders:
-        points[0]['points'].append({
-            'lat': float(order.latitude),
-            'lng': float(order.longitude)
-        })
+        points.append([
+            float(order.longitude),  # GraphHopper expects [lng, lat]
+            float(order.latitude)
+        ])
 
     # Add school as end point
-    points[0]['points'].append({
-        'lat': settings.school_latitude,
-        'lng': settings.school_longitude
-    })
+    points.append([
+        settings.school_longitude,
+        settings.school_latitude
+    ])
 
     # Prepare GraphHopper request
     payload = {
-        'points': points[0]['points'],
+        'points': points,
         'profile': 'car',
         'locale': 'en',
         'instructions': True,
