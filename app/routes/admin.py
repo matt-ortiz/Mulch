@@ -1947,65 +1947,44 @@ def optimize_with_graphhopper(orders, settings):
     
     # Start with school location
     points = [{
-        'id': 'school_start',
-        'address': settings.school_address,
-        'latitude': settings.school_latitude,
-        'longitude': settings.school_longitude
+        'points': [{
+            'lat': settings.school_latitude,
+            'lng': settings.school_longitude
+        }],
+        'vehicle_id': 'mulch_truck'
     }]
 
     # Add delivery points
     for order in orders:
-        points.append({
-            'id': str(order.id),
-            'address': order.address,
-            'latitude': float(order.latitude),
-            'longitude': float(order.longitude)
+        points[0]['points'].append({
+            'lat': float(order.latitude),
+            'lng': float(order.longitude)
         })
 
     # Add school as end point
-    points.append({
-        'id': 'school_end',
-        'address': settings.school_address,
-        'latitude': settings.school_latitude,
-        'longitude': settings.school_longitude
+    points[0]['points'].append({
+        'lat': settings.school_latitude,
+        'lng': settings.school_longitude
     })
 
     # Prepare GraphHopper request
     payload = {
-        'vehicles': [{
-            'vehicle_id': 'mulch_truck',
-            'start_address': {
-                'location_id': 'school_start',
-                'lon': settings.school_longitude,
-                'lat': settings.school_latitude
-            },
-            'end_address': {
-                'location_id': 'school_end',
-                'lon': settings.school_longitude,
-                'lat': settings.school_latitude
-            }
-        }],
-        'services': [
-            {
-                'id': str(p['id']),
-                'name': p['address'],
-                'address': {
-                    'location_id': str(p['id']),
-                    'lon': p['longitude'],
-                    'lat': p['latitude']
-                }
-            } for p in points[1:-1]  # Skip school start/end points
-        ]
+        'points': points[0]['points'],
+        'profile': 'car',
+        'locale': 'en',
+        'instructions': True,
+        'calc_points': True,
+        'points_encoded': False
     }
 
     # Debug print the request
     print("\nSending to GraphHopper:")
-    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/vrp")
+    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/route")
     print(f"Payload: {json.dumps(payload, indent=2)}")
 
     try:
         response = requests.post(
-            f"{current_app.config['GRAPHHOPPER_URL']}/vrp",
+            f"{current_app.config['GRAPHHOPPER_URL']}/route",
             headers={'Content-Type': 'application/json'},
             json=payload
         )
@@ -2024,43 +2003,57 @@ def optimize_with_graphhopper(orders, settings):
         optimized_route = []
         running_bags = 0
         
-        for i, activity in enumerate(route_data['routes'][0]['activities']):
-            point_id = activity['location_id']
+        # Add school start
+        optimized_route.append({
+            'id': 'school_start',
+            'customer_name': 'Hayfield Secondary',
+            'address': settings.school_address,
+            'latitude': float(settings.school_latitude),
+            'longitude': float(settings.school_longitude),
+            'stop_number': 0,
+            'is_school': True,
+            'distance_from_prev': 0,
+            'running_bag_total': 0
+        })
+        
+        # Add delivery points
+        for i, point in enumerate(route_data['paths'][0]['points']['coordinates'][1:-1], 1):
+            # Find the order closest to this point
+            order = min(orders, key=lambda o: haversine_distance(
+                point[1], point[0],  # GraphHopper returns [lng, lat]
+                o.latitude, o.longitude
+            ))
+            running_bags += order.bags_ordered
             
-            if point_id in ('school_start', 'school_end'):
-                # Add school points
-                optimized_route.append({
-                    'id': point_id,
-                    'customer_name': 'Hayfield Secondary',
-                    'address': settings.school_address,
-                    'latitude': float(settings.school_latitude),
-                    'longitude': float(settings.school_longitude),
-                    'stop_number': i,
-                    'is_school': True,
-                    'distance_from_prev': activity.get('driving_distance', 0) / 1000.0,  # Convert to km
-                    'running_bag_total': running_bags
-                })
-            else:
-                # Add delivery points
-                order = next(o for o in orders if str(o.id) == point_id)
-                running_bags += order.bags_ordered
-                
-                optimized_route.append({
-                    'id': order.id,
-                    'customer_name': order.customer_name,
-                    'address': order.address,
-                    'latitude': float(order.latitude),
-                    'longitude': float(order.longitude),
-                    'bags_ordered': order.bags_ordered,
-                    'mulch_type': order.mulch_type,
-                    'phone': order.phone,
-                    'preferred_contact': order.preferred_contact,
-                    'notes': order.notes,
-                    'stop_number': i,
-                    'is_school': False,
-                    'distance_from_prev': activity.get('driving_distance', 0) / 1000.0,  # Convert to km
-                    'running_bag_total': running_bags
-                })
+            optimized_route.append({
+                'id': order.id,
+                'customer_name': order.customer_name,
+                'address': order.address,
+                'latitude': float(order.latitude),
+                'longitude': float(order.longitude),
+                'bags_ordered': order.bags_ordered,
+                'mulch_type': order.mulch_type,
+                'phone': order.phone,
+                'preferred_contact': order.preferred_contact,
+                'notes': order.notes,
+                'stop_number': i,
+                'is_school': False,
+                'distance_from_prev': route_data['paths'][0]['distance'] / 1000.0,  # Convert to km
+                'running_bag_total': running_bags
+            })
+        
+        # Add school end
+        optimized_route.append({
+            'id': 'school_end',
+            'customer_name': 'Hayfield Secondary',
+            'address': settings.school_address,
+            'latitude': float(settings.school_latitude),
+            'longitude': float(settings.school_longitude),
+            'stop_number': len(orders) + 1,
+            'is_school': True,
+            'distance_from_prev': route_data['paths'][0]['distance'] / 1000.0,  # Convert to km
+            'running_bag_total': running_bags
+        })
 
         return optimized_route
 
