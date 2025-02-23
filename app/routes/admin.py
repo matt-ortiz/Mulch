@@ -1910,45 +1910,51 @@ def view_routes():
             optimized_route = optimize_with_graphhopper(mulch_orders, settings)
             
             if optimized_route:
-                print(f"Successfully got optimized route with {len(optimized_route)} stops")
+                print(f"Successfully got optimized routes")
                 
                 try:
                     # Deactivate any existing routes for this mulch type
                     Route.query.filter_by(mulch_type=mulch_type).update({'is_active': False})
                     
-                    # Get delivery stops (non-school stops)
-                    delivery_stops = [stop for stop in optimized_route if not stop.get('is_school')]
-                    total_distance = sum(stop.get('distance_from_prev', 0) for stop in optimized_route)
-                    total_bags = sum(stop.get('bags_ordered', 0) for stop in delivery_stops)
-                    
-                    # Create new route
-                    route = Route(
-                        mulch_type=mulch_type,
-                        total_bags=total_bags,
-                        total_stops=len(delivery_stops),
-                        total_distance=total_distance,
-                        route_data=optimized_route,
-                        is_active=True
-                    )
-                    db.session.add(route)
-                    
-                    # Create route stops
-                    for stop in delivery_stops:
-                        route_stop = RouteStop(
-                            route=route,
-                            delivery_order_id=stop['id'],
-                            stop_number=stop['stop_number'],
-                            distance_from_prev=stop['distance_from_prev']
+                    # Create routes for each optimized cluster
+                    routes_for_type = []
+                    for route_data in optimized_route:  # Now handling multiple routes
+                        delivery_stops = [stop for stop in route_data if not stop.get('is_school')]
+                        total_distance = sum(stop.get('distance_from_prev', 0) for stop in route_data)
+                        total_bags = sum(stop.get('bags_ordered', 0) for stop in delivery_stops)
+                        
+                        route = Route(
+                            mulch_type=mulch_type,
+                            total_bags=total_bags,
+                            total_stops=len(delivery_stops),
+                            total_distance=total_distance,
+                            route_data=route_data,
+                            is_active=True
                         )
-                        db.session.add(route_stop)
+                        db.session.add(route)
+                        routes_for_type.append(route_data)
+                        
+                        # Create route stops
+                        for stop in delivery_stops:
+                            route_stop = RouteStop(
+                                route=route,
+                                delivery_order_id=stop['id'],
+                                stop_number=stop['stop_number'],
+                                distance_from_prev=stop['distance_from_prev']
+                            )
+                            db.session.add(route_stop)
                     
                     # Add to clustered_data for display
-                    clustered_data['routes'][mulch_type] = [optimized_route]
+                    clustered_data['routes'][mulch_type] = routes_for_type
+                    
+                    # Update stats
+                    all_delivery_stops = [stop for route in routes_for_type 
+                                        for stop in route if not stop.get('is_school')]
                     clustered_data['stats']['mulch_types'][mulch_type] = {
-                        'total_stops': len(delivery_stops),
-                        'total_bags': total_bags
+                        'total_stops': len(all_delivery_stops),
+                        'total_bags': sum(stop.get('bags_ordered', 0) for stop in all_delivery_stops)
                     }
-                    clustered_data['stats']['total_orders'] += len(delivery_stops)
+                    clustered_data['stats']['total_orders'] += len(all_delivery_stops)
                     
                     db.session.commit()
                     print(f"Saved route for {mulch_type}")
@@ -2016,11 +2022,11 @@ def optimize_with_graphhopper(orders, settings):
                 order.latitude, order.longitude
             )
             
-            # If order is within 0.5 miles (about 0.8 km), add to cluster
-            if distance <= 0.5:  # Changed from 2 miles to 0.5 miles
+            # If order is within 0.5 miles, add to cluster
+            if distance <= 0.5:
                 current_cluster.append(order)
                 remaining_orders.pop(i)
-                # Update center (simple average)
+                # Update center
                 center_lat = sum(o.latitude for o in current_cluster) / len(current_cluster)
                 center_lng = sum(o.longitude for o in current_cluster) / len(current_cluster)
             else:
@@ -2029,14 +2035,48 @@ def optimize_with_graphhopper(orders, settings):
         clusters.append(current_cluster)
     
     print(f"\nCreated {len(clusters)} clusters of nearby orders")
-    for idx, cluster in enumerate(clusters):
-        print(f"Cluster {idx + 1}: {len(cluster)} orders")
+    
+    # Now find clusters that are close to each other (within 1.5 miles)
+    merged_clusters = []
+    used_clusters = set()
+    
+    for i, cluster1 in enumerate(clusters):
+        if i in used_clusters:
+            continue
+            
+        current_merged = cluster1.copy()
+        used_clusters.add(i)
+        
+        # Find nearby clusters
+        for j, cluster2 in enumerate(clusters):
+            if j in used_clusters:
+                continue
+                
+            # Calculate distance between cluster centers
+            c1_lat = sum(o.latitude for o in cluster1) / len(cluster1)
+            c1_lng = sum(o.longitude for o in cluster1) / len(cluster1)
+            c2_lat = sum(o.latitude for o in cluster2) / len(cluster2)
+            c2_lng = sum(o.longitude for o in cluster2) / len(cluster2)
+            
+            distance = haversine_distance(c1_lat, c1_lng, c2_lat, c2_lng)
+            
+            # If clusters are within 1.5 miles, merge them
+            if distance <= 1.5:
+                current_merged.extend(cluster2)
+                used_clusters.add(j)
+        
+        merged_clusters.append(current_merged)
+    
+    print(f"\nMerged into {len(merged_clusters)} larger clusters")
+    for idx, cluster in enumerate(merged_clusters):
+        print(f"Merged Cluster {idx + 1}: {len(cluster)} orders")
         for order in cluster:
             print(f"  - {order.customer_name}: {order.address}")
     
-    # Now optimize each cluster
+    # Now optimize each merged cluster
     optimized_routes = []
-    for cluster_idx, cluster in enumerate(clusters):
+    
+    for cluster_idx, cluster in enumerate(merged_clusters):
         print(f"\nOptimizing cluster {cluster_idx + 1} with {len(cluster)} orders")
         
         # Create list of points starting with school
@@ -2169,7 +2209,8 @@ def optimize_with_graphhopper(orders, settings):
             continue
     
     print(f"\nOptimization complete. Created {len(optimized_routes)} routes")
-    return optimized_routes[0] if optimized_routes else None
+    # Return all optimized routes instead of just the first one
+    return optimized_routes if optimized_routes else None
 
 @admin_routes.route('/update-school-location', methods=['POST'])
 @login_required
