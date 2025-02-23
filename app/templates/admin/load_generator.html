@@ -14,7 +14,7 @@
     .drivers-panel {
         background: white;
         border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -75,7 +75,7 @@
     .load-panel {
         background: white;
         border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         display: grid;
         grid-template-rows: auto 1fr;
         height: 100%;
@@ -249,7 +249,7 @@
         height: 12px;
         border-radius: 50%;
         border: 2px solid #fff;
-        box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
     }
 
     .bags-count {
@@ -329,7 +329,7 @@
         <div class="panel-header">
             <h2 class="panel-title">Available Drivers</h2>
             <p class="panel-subtitle">Select a driver to generate a load</p>
-            
+
             <div class="mulch-summary">
                 {% for mulch_type, total in mulch_totals.items() %}
                 <div class="mulch-type">
@@ -338,7 +338,7 @@
                 {% endfor %}
             </div>
         </div>
-        
+
         <div class="drivers-list">
             {% for driver in drivers %}
             <div class="driver-card" onclick="selectDriver({{ driver.id }})">
@@ -350,13 +350,13 @@
             {% endfor %}
         </div>
     </div>
-    
+
     <div class="load-panel">
         <div class="panel-header">
             <h2 class="panel-title">Generate Load</h2>
             <p class="panel-subtitle">Select a driver to view potential load</p>
         </div>
-        
+
         <div class="load-content">
             <div class="orders-section">
                 <div class="orders-header">
@@ -404,86 +404,86 @@
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let map;
-let markers = [];
-let selectedDriver = null;
-let currentSuggestionIndex = 0;
-let selectedDriverCapacity = 0;
+    let map;
+    let markers = [];
+    let selectedDriver = null;
+    let currentSuggestionIndex = 0;
+    let selectedDriverCapacity = 0;
 
-// Initialize map
-document.addEventListener('DOMContentLoaded', function() {
-    map = L.map('map').setView([{{ config['SCHOOL_LATITUDE'] }}, {{ config['SCHOOL_LONGITUDE'] }}], 12);
+    // Initialize map
+    document.addEventListener('DOMContentLoaded', function () {
+        map = L.map('map').setView([{{ config['SCHOOL_LATITUDE'] }}, {{ config['SCHOOL_LONGITUDE'] }}], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 });
 
-function selectDriver(driverId) {
-    // Update UI selection
-    document.querySelectorAll('.driver-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    const selectedCard = document.querySelector(`.driver-card[onclick*="${driverId}"]`);
-    selectedCard.classList.add('selected');
-    
-    // Store the driver's capacity
-    selectedDriverCapacity = parseInt(selectedCard.querySelector('.driver-capacity').textContent.match(/\d+/)[0]);
-    
-    // Enable both buttons when a driver is selected
-    document.getElementById('findNewBtn').disabled = false;
-    document.getElementById('assignBtn').disabled = false;
-    selectedDriver = driverId;
-    
-    // Reset suggestion index when selecting a new driver
-    currentSuggestionIndex = 0;
-    
-    // Fetch suggested load
-    fetch(`/admin/suggest-load/${driverId}`)
-        .then(response => response.json())
-        .then(data => {
-            updateMap(data.orders);
-            updateOrdersList(data.orders, data.stats);
-            currentSuggestionIndex = data.stats.suggestion_index;
+    function selectDriver(driverId) {
+        // Update UI selection
+        document.querySelectorAll('.driver-card').forEach(card => {
+            card.classList.remove('selected');
         });
-}
+        const selectedCard = document.querySelector(`.driver-card[onclick*="${driverId}"]`);
+        selectedCard.classList.add('selected');
 
-function updateMap(orders) {
-    // Clear existing markers
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
-    
-    // Add new markers
-    orders.forEach(order => {
-        if (order.latitude && order.longitude) {  // Only add if coordinates exist
-            const marker = L.circleMarker([order.latitude, order.longitude], {
-                radius: 8,
-                fillColor: getMulchColor(order.mulch_type),
-                color: '#1e40af',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
-            }).addTo(map);
-            
-            marker.bindPopup(`
+        // Store the driver's capacity
+        selectedDriverCapacity = parseInt(selectedCard.querySelector('.driver-capacity').textContent.match(/\d+/)[0]);
+
+        // Enable both buttons when a driver is selected
+        document.getElementById('findNewBtn').disabled = false;
+        document.getElementById('assignBtn').disabled = false;
+        selectedDriver = driverId;
+
+        // Reset suggestion index when selecting a new driver
+        currentSuggestionIndex = 0;
+
+        // Fetch suggested load
+        fetch(`/admin/suggest-load/${driverId}`)
+            .then(response => response.json())
+            .then(data => {
+                updateMap(data.orders);
+                updateOrdersList(data.orders, data.stats);
+                currentSuggestionIndex = data.stats.suggestion_index;
+            });
+    }
+
+    function updateMap(orders) {
+        // Clear existing markers
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+
+        // Add new markers
+        orders.forEach(order => {
+            if (order.latitude && order.longitude) {  // Only add if coordinates exist
+                const marker = L.circleMarker([order.latitude, order.longitude], {
+                    radius: 8,
+                    fillColor: getMulchColor(order.mulch_type),
+                    color: '#1e40af',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
                 <strong>${order.customer_name}</strong><br>
                 ${order.address}<br>
                 ${order.bags_ordered} bags - ${order.mulch_type}
             `);
-            
-            markers.push(marker);
-        }
-    });
-    
-    // Fit map to show all markers
-    if (markers.length > 0) {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.1));
-    }
-}
 
-function updateOrdersList(orders, stats) {
-    const container = document.getElementById('suggestedOrders');
-    container.innerHTML = orders.map(order => `
+                markers.push(marker);
+            }
+        });
+
+        // Fit map to show all markers
+        if (markers.length > 0) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+    }
+
+    function updateOrdersList(orders, stats) {
+        const container = document.getElementById('suggestedOrders');
+        container.innerHTML = orders.map(order => `
         <div class="order-item ${order.is_assigned ? 'assigned-order' : ''}" data-order-id="${order.id}">
             <div class="order-name">${order.customer_name}</div>
             <div class="order-details">
@@ -505,8 +505,8 @@ function updateOrdersList(orders, stats) {
             ` : ''}
         </div>
     `).join('');
-    
-    document.getElementById('loadStats').innerHTML = `
+
+        document.getElementById('loadStats').innerHTML = `
         <div class="stats-group">
             <span class="stat-item">
                 <i class="lucide-map-pin"></i>
@@ -525,139 +525,139 @@ function updateOrdersList(orders, stats) {
         </div>
         ${orders.some(o => o.is_assigned) ? '<span class="assigned-badge">Current Load</span>' : ''}
     `;
-    
-    // Disable assign button if these are assigned orders
-    document.getElementById('assignBtn').disabled = orders.some(o => o.is_assigned);
-    document.getElementById('findNewBtn').disabled = orders.some(o => o.is_assigned);
-}
 
-function assignLoad() {
-    if (!selectedDriver) return;
-    
-    // Get the order IDs from the current suggestion
-    const orderIds = Array.from(document.querySelectorAll('.order-item'))
-        .map(item => parseInt(item.dataset.orderId));
-    
-    fetch('/admin/assign-suggested-load', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            driver_id: selectedDriver,
-            order_ids: orderIds
+        // Disable assign button if these are assigned orders
+        document.getElementById('assignBtn').disabled = orders.some(o => o.is_assigned);
+        document.getElementById('findNewBtn').disabled = orders.some(o => o.is_assigned);
+    }
+
+    function assignLoad() {
+        if (!selectedDriver) return;
+
+        // Get the order IDs from the current suggestion
+        const orderIds = Array.from(document.querySelectorAll('.order-item'))
+            .map(item => parseInt(item.dataset.orderId));
+
+        fetch('/admin/assign-suggested-load', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                driver_id: selectedDriver,
+                order_ids: orderIds
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        }
-    });
-}
-
-function findNewLoad() {
-    if (!selectedDriver) return;
-    
-    // Add loading state
-    const findBtn = document.getElementById('findNewBtn');
-    const originalText = findBtn.innerHTML;
-    findBtn.innerHTML = '<i class="lucide-loader"></i> Finding...';
-    findBtn.disabled = true;
-    
-    // Request a new load suggestion
-    fetch(`/admin/suggest-load/${selectedDriver}?skip_previous=true&last_suggestion=${currentSuggestionIndex}`)
-        .then(response => response.json())
-        .then(data => {
-            updateMap(data.orders);
-            updateOrdersList(data.orders, data.stats);
-            currentSuggestionIndex = data.stats.suggestion_index;
-        })
-        .finally(() => {
-            findBtn.innerHTML = originalText;
-            findBtn.disabled = false;
-        });
-}
-
-function getMulchColor(mulchType) {
-    const colors = {
-        'Black Shredded Hardwood': '#000000',
-        'Red Shredded Hardwood': '#8B4513',
-        'Shredded Hardwood (Natural brown)': '#DEB887'
-    };
-    return colors[mulchType] || '#808080';
-}
-
-function unassignOrder(event, deliveryId, orderId) {
-    event.stopPropagation();  // Prevent order item click
-    
-    if (!confirm('Unassign this order?')) return;
-    
-    // Find the order item element
-    const orderItem = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
-    
-    // Add loading state
-    orderItem.style.opacity = '0.5';
-    
-    fetch('/admin/unassign-order', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ order_id: deliveryId })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Remove the order item with animation
-            orderItem.style.transform = 'translateX(100%)';
-            orderItem.style.opacity = '0';
-            setTimeout(() => {
-                orderItem.remove();
-                
-                // Update stats
-                updateStats();
-                
-                // Refresh the map data and markers
-                if (selectedDriver) {
-                    fetch(`/admin/suggest-load/${selectedDriver}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            // Update map with new data
-                            updateMap(data.orders);
-                            // Update orders list
-                            updateOrdersList(data.orders, data.stats);
-                        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
                 }
-            }, 300);
-        } else {
-            alert('Failed to unassign order');
-            orderItem.style.opacity = '1';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to unassign order');
-        orderItem.style.opacity = '1';
-    });
-}
+            });
+    }
 
-function updateStats() {
-    // Get all visible orders
-    const orders = document.querySelectorAll('.order-item');
-    let totalBags = 0;
-    orders.forEach(order => {
-        const bagsText = order.querySelector('.bags-count').textContent;
-        const bags = parseInt(bagsText);
-        if (!isNaN(bags)) totalBags += bags;
-    });
-    
-    // Calculate capacity percentage
-    const capacityPercentage = selectedDriverCapacity ? 
-        Math.round((totalBags / selectedDriverCapacity) * 100) : 0;
-    
-    // Update the stats display
-    document.getElementById('loadStats').innerHTML = `
+    function findNewLoad() {
+        if (!selectedDriver) return;
+
+        // Add loading state
+        const findBtn = document.getElementById('findNewBtn');
+        const originalText = findBtn.innerHTML;
+        findBtn.innerHTML = '<i class="lucide-loader"></i> Finding...';
+        findBtn.disabled = true;
+
+        // Request a new load suggestion
+        fetch(`/admin/suggest-load/${selectedDriver}?skip_previous=true&last_suggestion=${currentSuggestionIndex}`)
+            .then(response => response.json())
+            .then(data => {
+                updateMap(data.orders);
+                updateOrdersList(data.orders, data.stats);
+                currentSuggestionIndex = data.stats.suggestion_index;
+            })
+            .finally(() => {
+                findBtn.innerHTML = originalText;
+                findBtn.disabled = false;
+            });
+    }
+
+    function getMulchColor(mulchType) {
+        const colors = {
+            'Black Shredded Hardwood': '#000000',
+            'Red Shredded Hardwood': '#8B4513',
+            'Shredded Hardwood (Natural brown)': '#DEB887'
+        };
+        return colors[mulchType] || '#808080';
+    }
+
+    function unassignOrder(event, deliveryId, orderId) {
+        event.stopPropagation();  // Prevent order item click
+
+        if (!confirm('Unassign this order?')) return;
+
+        // Find the order item element
+        const orderItem = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
+
+        // Add loading state
+        orderItem.style.opacity = '0.5';
+
+        fetch('/admin/unassign-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ order_id: deliveryId })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the order item with animation
+                    orderItem.style.transform = 'translateX(100%)';
+                    orderItem.style.opacity = '0';
+                    setTimeout(() => {
+                        orderItem.remove();
+
+                        // Update stats
+                        updateStats();
+
+                        // Refresh the map data and markers
+                        if (selectedDriver) {
+                            fetch(`/admin/suggest-load/${selectedDriver}`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    // Update map with new data
+                                    updateMap(data.orders);
+                                    // Update orders list
+                                    updateOrdersList(data.orders, data.stats);
+                                });
+                        }
+                    }, 300);
+                } else {
+                    alert('Failed to unassign order');
+                    orderItem.style.opacity = '1';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to unassign order');
+                orderItem.style.opacity = '1';
+            });
+    }
+
+    function updateStats() {
+        // Get all visible orders
+        const orders = document.querySelectorAll('.order-item');
+        let totalBags = 0;
+        orders.forEach(order => {
+            const bagsText = order.querySelector('.bags-count').textContent;
+            const bags = parseInt(bagsText);
+            if (!isNaN(bags)) totalBags += bags;
+        });
+
+        // Calculate capacity percentage
+        const capacityPercentage = selectedDriverCapacity ?
+            Math.round((totalBags / selectedDriverCapacity) * 100) : 0;
+
+        // Update the stats display
+        document.getElementById('loadStats').innerHTML = `
         <div class="stats-group">
             <span class="stat-item">
                 <i class="lucide-map-pin"></i>
@@ -676,6 +676,7 @@ function updateStats() {
         </div>
         <span class="assigned-badge">Current Load</span>
     `;
-}
+    }
 </script>
-{% endblock %} 
+{% endblock %}
+\ No newline at end of file
