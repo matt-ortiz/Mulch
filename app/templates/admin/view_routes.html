@@ -125,17 +125,19 @@
             .bindPopup('<b>School</b><br>' + routeData.school.address)
             .addTo(map);
         
-        // Create route layers for each mulch type
-        Object.entries(routeData.routes).forEach(([mulchType, clusters], typeIndex) => {
+        // Initialize route layers
+        Object.keys(routeData.routes).forEach(mulchType => {
             routeLayers[mulchType] = [];
             
-            clusters.forEach((cluster, clusterIndex) => {
+            // Process each cluster for this mulch type
+            routeData.routes[mulchType].forEach((cluster, clusterIndex) => {
                 const color = colors[clusterIndex % colors.length];
                 const routeLayer = L.layerGroup();
                 
-                // Add markers and connect them with lines
+                // Add markers and lines for each order
                 cluster.forEach((order, orderIndex) => {
-                    // Create marker
+                    if (order.is_school) return;  // Skip school points
+                    
                     const marker = L.circleMarker([order.latitude, order.longitude], {
                         radius: 8,
                         fillColor: color,
@@ -145,30 +147,22 @@
                         fillOpacity: 0.8
                     });
                     
-                    // Add popup
                     marker.bindPopup(`
                         <b>${order.customer_name}</b><br>
                         ${order.address}<br>
                         ${order.bags_ordered} bags - ${mulchType}<br>
-                        Route ${clusterIndex + 1}, Stop ${orderIndex + 1}
+                        Stop ${order.stop_number}
                     `);
                     
                     routeLayer.addLayer(marker);
                     
-                    // Connect to next point
+                    // Connect to next point if not last point
                     if (orderIndex < cluster.length - 1) {
                         const nextOrder = cluster[orderIndex + 1];
                         const line = L.polyline(
-                            [
-                                [order.latitude, order.longitude],
-                                [nextOrder.latitude, nextOrder.longitude]
-                            ],
-                            {
-                                color: color,
-                                weight: 3,
-                                opacity: 0.6,
-                                dashArray: '10,10'
-                            }
+                            [[order.latitude, order.longitude], 
+                             [nextOrder.latitude, nextOrder.longitude]],
+                            {color: color, weight: 2, opacity: 0.6}
                         );
                         routeLayer.addLayer(line);
                     }
@@ -196,12 +190,13 @@
         const statsHtml = Object.entries(routeData.routes).map(([mulchType, clusters]) => {
             const routeStats = clusters.map((cluster, index) => {
                 const color = colors[index % colors.length];
-                const totalBags = cluster.reduce((sum, order) => sum + order.bags_ordered, 0);
+                const deliveryStops = cluster.filter(stop => !stop.is_school);
+                const totalBags = deliveryStops.reduce((sum, stop) => sum + stop.bags_ordered, 0);
                 return `
                     <div class="route-item">
                         <div class="color-box" style="background-color: ${color}"></div>
                         <div class="route-stats">
-                            Route ${index + 1}: ${cluster.length} stops, ${totalBags} bags
+                            Route ${index + 1}: ${deliveryStops.length} stops, ${totalBags} bags
                         </div>
                     </div>
                 `;
