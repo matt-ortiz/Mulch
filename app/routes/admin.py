@@ -1991,141 +1991,175 @@ def optimize_with_graphhopper(orders, settings):
     print("\n=== GraphHopper Optimization Details ===")
     print(f"Optimizing route for {len(orders)} orders")
     
-    # Create list of points starting with school
-    points = [
-        [settings.school_longitude, settings.school_latitude]  # GraphHopper expects [lng, lat]
-    ]
-
-    # Add delivery points
-    for order in orders:
-        points.append([
-            float(order.longitude),  # GraphHopper expects [lng, lat]
-            float(order.latitude)
-        ])
-        print(f"Added point for {order.customer_name}: [{order.longitude}, {order.latitude}]")
-
-    # Add school as end point
-    points.append([
-        settings.school_longitude,
-        settings.school_latitude
-    ])
-
-    # Prepare GraphHopper request
-    payload = {
-        'points': points,
-        'profile': 'car',
-        'locale': 'en',
-        'instructions': True,
-        'calc_points': True,
-        'points_encoded': False
-    }
-
-    try:
-        response = requests.post(
-            f"{current_app.config['GRAPHHOPPER_URL']}/route",
-            headers={'Content-Type': 'application/json'},
-            json=payload
-        )
+    # First, cluster orders by proximity
+    clusters = []
+    remaining_orders = orders.copy()
+    
+    while remaining_orders:
+        # Start a new cluster with the first remaining order
+        current_cluster = [remaining_orders.pop(0)]
+        center_lat = current_cluster[0].latitude
+        center_lng = current_cluster[0].longitude
         
-        if response.status_code != 200:
-            print(f"GraphHopper error: {response.text}")
-            return None
-
-        route_data = response.json()
-        
-        # Validate route data
-        if 'paths' not in route_data or not route_data['paths']:
-            print("Error: No paths in response")
-            return None
-            
-        path = route_data['paths'][0]
-        print(f"\nRoute Summary:")
-        print(f"Total Distance: {path['distance']/1000:.2f} km")
-        print(f"Total Time: {path['time']/1000/60:.2f} minutes")
-        
-        # Get the coordinates of the actual route
-        route_coordinates = path['points']['coordinates']
-        
-        # Process and return optimized route
-        optimized_route = []
-        running_bags = 0
-        
-        # Add school start
-        optimized_route.append({
-            'id': 'school_start',
-            'customer_name': 'Hayfield Secondary',
-            'address': settings.school_address,
-            'latitude': float(settings.school_latitude),
-            'longitude': float(settings.school_longitude),
-            'stop_number': 0,
-            'is_school': True,
-            'distance_from_prev': 0,
-            'running_bag_total': 0
-        })
-        
-        # Process delivery points (skip first and last which are school)
-        for i, point in enumerate(points[1:-1], 1):
-            # Find the order for this point
-            order = min(orders, key=lambda o: haversine_distance(
-                o.latitude, o.longitude,
-                point[1], point[0]  # point is [lng, lat]
-            ))
-            running_bags += order.bags_ordered
-            
-            # Calculate distance from previous point using route coordinates
-            prev_coords = route_coordinates[i-1]
-            curr_coords = route_coordinates[i]
+        # Find nearby orders
+        i = 0
+        while i < len(remaining_orders):
+            order = remaining_orders[i]
             distance = haversine_distance(
-                prev_coords[1], prev_coords[0],  # [lng, lat] to [lat, lng]
-                curr_coords[1], curr_coords[0]
+                center_lat, center_lng,
+                order.latitude, order.longitude
             )
             
-            optimized_route.append({
-                'id': order.id,
-                'customer_name': order.customer_name,
-                'address': order.address,
-                'latitude': float(order.latitude),
-                'longitude': float(order.longitude),
-                'bags_ordered': order.bags_ordered,
-                'mulch_type': order.mulch_type,
-                'phone': order.phone,
-                'preferred_contact': order.preferred_contact,
-                'notes': order.notes,
-                'stop_number': i,
-                'is_school': False,
-                'distance_from_prev': distance,
+            # If order is within 2 miles (about 3.2 km), add to cluster
+            if distance <= 2:
+                current_cluster.append(order)
+                remaining_orders.pop(i)
+                # Update center (simple average)
+                center_lat = sum(o.latitude for o in current_cluster) / len(current_cluster)
+                center_lng = sum(o.longitude for o in current_cluster) / len(current_cluster)
+            else:
+                i += 1
+        
+        clusters.append(current_cluster)
+    
+    print(f"\nCreated {len(clusters)} clusters of nearby orders")
+    
+    # Now optimize each cluster
+    optimized_routes = []
+    for cluster_idx, cluster in enumerate(clusters):
+        print(f"\nOptimizing cluster {cluster_idx + 1} with {len(cluster)} orders")
+        
+        # Create list of points starting with school
+        points = [
+            [settings.school_longitude, settings.school_latitude]
+        ]
+
+        # Add delivery points
+        for order in cluster:
+            points.append([
+                float(order.longitude),
+                float(order.latitude)
+            ])
+            print(f"Added point for {order.customer_name}: [{order.longitude}, {order.latitude}]")
+
+        # Add school as end point
+        points.append([
+            settings.school_longitude,
+            settings.school_latitude
+        ])
+
+        # Rest of the GraphHopper request remains the same...
+        payload = {
+            'points': points,
+            'profile': 'car',
+            'locale': 'en',
+            'instructions': True,
+            'calc_points': True,
+            'points_encoded': False
+        }
+
+        try:
+            response = requests.post(
+                f"{current_app.config['GRAPHHOPPER_URL']}/route",
+                headers={'Content-Type': 'application/json'},
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                print(f"GraphHopper error: {response.text}")
+                continue
+
+            route_data = response.json()
+            path = route_data['paths'][0]
+            
+            # Convert to miles
+            total_distance_miles = path['distance'] * 0.000621371
+            print(f"\nRoute Summary:")
+            print(f"Total Distance: {total_distance_miles:.2f} miles")
+            print(f"Total Time: {path['time']/1000/60:.2f} minutes")
+            
+            route_coordinates = path['points']['coordinates']
+            
+            # Create optimized route for this cluster
+            cluster_route = []
+            running_bags = 0
+            
+            # Add school start
+            cluster_route.append({
+                'id': f'school_start_{cluster_idx}',
+                'customer_name': 'Hayfield Secondary',
+                'address': settings.school_address,
+                'latitude': float(settings.school_latitude),
+                'longitude': float(settings.school_longitude),
+                'stop_number': 0,
+                'is_school': True,
+                'distance_from_prev': 0,
+                'running_bag_total': 0
+            })
+            
+            # Process delivery points
+            for i, point in enumerate(points[1:-1], 1):
+                order = min(cluster, key=lambda o: haversine_distance(
+                    o.latitude, o.longitude,
+                    point[1], point[0]
+                ))
+                running_bags += order.bags_ordered
+                
+                # Calculate distance in miles
+                prev_coords = route_coordinates[i-1]
+                curr_coords = route_coordinates[i]
+                distance = haversine_distance(
+                    prev_coords[1], prev_coords[0],
+                    curr_coords[1], curr_coords[0]
+                ) * 0.621371  # Convert km to miles
+                
+                cluster_route.append({
+                    'id': order.id,
+                    'customer_name': order.customer_name,
+                    'address': order.address,
+                    'latitude': float(order.latitude),
+                    'longitude': float(order.longitude),
+                    'bags_ordered': order.bags_ordered,
+                    'mulch_type': order.mulch_type,
+                    'phone': order.phone,
+                    'preferred_contact': order.preferred_contact,
+                    'notes': order.notes,
+                    'stop_number': i,
+                    'is_school': False,
+                    'distance_from_prev': distance,
+                    'running_bag_total': running_bags
+                })
+            
+            # Add school end
+            last_coords = route_coordinates[-2]
+            school_coords = route_coordinates[-1]
+            final_distance = haversine_distance(
+                last_coords[1], last_coords[0],
+                school_coords[1], school_coords[0]
+            ) * 0.621371  # Convert to miles
+            
+            cluster_route.append({
+                'id': f'school_end_{cluster_idx}',
+                'customer_name': 'Hayfield Secondary',
+                'address': settings.school_address,
+                'latitude': float(settings.school_latitude),
+                'longitude': float(settings.school_longitude),
+                'stop_number': len(cluster) + 1,
+                'is_school': True,
+                'distance_from_prev': final_distance,
                 'running_bag_total': running_bags
             })
-        
-        # Add school end
-        # Calculate distance from last delivery to school
-        last_coords = route_coordinates[-2]  # Second to last point
-        school_coords = route_coordinates[-1]  # Last point
-        final_distance = haversine_distance(
-            last_coords[1], last_coords[0],
-            school_coords[1], school_coords[0]
-        )
-        
-        optimized_route.append({
-            'id': 'school_end',
-            'customer_name': 'Hayfield Secondary',
-            'address': settings.school_address,
-            'latitude': float(settings.school_latitude),
-            'longitude': float(settings.school_longitude),
-            'stop_number': len(orders) + 1,
-            'is_school': True,
-            'distance_from_prev': final_distance,
-            'running_bag_total': running_bags
-        })
+            
+            optimized_routes.append(cluster_route)
 
-        print(f"\nOptimization complete. Total stops: {len(optimized_route)}")
-        return optimized_route
-
-    except Exception as e:
-        print(f"\nError optimizing route: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return None
+        except Exception as e:
+            print(f"\nError optimizing cluster {cluster_idx + 1}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    print(f"\nOptimization complete. Created {len(optimized_routes)} routes")
+    return optimized_routes[0] if optimized_routes else None
 
 @admin_routes.route('/update-school-location', methods=['POST'])
 @login_required
