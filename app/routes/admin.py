@@ -1900,6 +1900,31 @@ def view_routes():
             clustered_data['stats']['total_orders'] += len(delivery_stops)
             
             try:
+                # Deactivate any existing routes for this mulch type
+                Route.query.filter_by(mulch_type=mulch_type).update({'is_active': False})
+                
+                # Create new route
+                total_distance = sum(stop.get('distance_from_prev', 0) for stop in optimized_route)
+                route = Route(
+                    mulch_type=mulch_type,
+                    total_bags=sum(stop.get('bags_ordered', 0) for stop in delivery_stops),
+                    total_stops=len(delivery_stops),
+                    total_distance=total_distance,
+                    route_data=optimized_route,
+                    is_active=True
+                )
+                db.session.add(route)
+                
+                # Create route stops for each delivery point
+                for stop in delivery_stops:
+                    route_stop = RouteStop(
+                        route=route,
+                        delivery_order_id=stop['id'],  # Changed from order_id to delivery_order_id
+                        stop_number=stop['stop_number'],
+                        distance_from_prev=stop['distance_from_prev']
+                    )
+                    db.session.add(route_stop)
+                
                 db.session.commit()
                 print(f"Saved route for {mulch_type}")
             except Exception as e:

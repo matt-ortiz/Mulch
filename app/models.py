@@ -85,11 +85,13 @@ class Route(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
 class RouteStop(db.Model):
+    __tablename__ = 'route_stop'
     id = db.Column(db.Integer, primary_key=True)
     route_id = db.Column(db.Integer, db.ForeignKey('route.id'))
-    order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
+    delivery_order_id = db.Column(db.Integer, db.ForeignKey('order.id'))  # renamed
     stop_number = db.Column(db.Integer)
     distance_from_prev = db.Column(db.Float)  # in km
     
     route = db.relationship('Route', backref='stops')
-    order = db.relationship('Order', backref='route_stops')
+    order = db.relationship('Order', backref='route_stops', 
+                          foreign_keys=[delivery_order_id])  # specify foreign key
