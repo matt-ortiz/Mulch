@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, flash, Response, send_file
 from flask_login import login_required, current_user
-from app.models import Order, Delivery, User, Settings
+from app.models import Order, Delivery, User, Settings, Route, RouteStop
 from app import db
 from datetime import datetime
 import csv
@@ -75,7 +75,7 @@ def auto_assign():
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Get unassigned orders
-    unassigned_orders = Order.query.filter(~Order.delivery.has()).all()
+    unassigned_orders = Order.query.filter(~Order.deliveries.any()).all()
     available_drivers = User.query.filter_by(is_admin=False).all()
 
     # Group orders by mulch type and location
@@ -346,7 +346,7 @@ def dashboard():
     
     # Also get orders that don't have any delivery record yet
     unassigned_orders = Order.query.filter(
-        ~Order.delivery.has()  # No delivery record
+        ~Order.deliveries.any()  # Use deliveries instead of delivery
     ).all()
     
     # Create pseudo-delivery objects for unassigned orders
@@ -390,7 +390,7 @@ def assign_orders_page():
         return redirect(url_for('main.index'))
     
     # Get unassigned orders and available drivers
-    unassigned_orders = Order.query.filter(~Order.delivery.has()).all()
+    unassigned_orders = Order.query.filter(~Order.deliveries.any()).all()
     drivers = User.query.filter_by(is_admin=False).all()
     
     return render_template('admin/assign_orders.html',
@@ -954,7 +954,7 @@ def ai_routes():
     
     drivers = User.query.filter_by(is_admin=False).all()
     unassigned_orders = Order.query.filter(
-        ~Order.delivery.has(),  # No delivery record
+        ~Order.deliveries.any(),  # No delivery record
         Order.latitude.isnot(None),  # Has valid coordinates
         Order.longitude.isnot(None)
     ).all()
@@ -1192,7 +1192,7 @@ def load_generator():
     
     # Get unassigned orders
     unassigned_orders = Order.query.filter(
-        ~Order.delivery.has()  # No delivery assigned
+        ~Order.deliveries.any()  # No delivery assigned
     ).all()
     
     # Calculate total unassigned bags by mulch type
@@ -1270,8 +1270,8 @@ def suggest_load(driver_id):
         return jsonify({'error': 'No available capacity for this driver'}), 400
 
     # Get unassigned orders efficiently, excluding those that are already assigned
-    unassigned_orders = Order.query.options(joinedload(Order.delivery)).filter(
-        Order.delivery == None,  # Ensures order is unassigned
+    unassigned_orders = Order.query.options(joinedload(Order.deliveries)).filter(
+        Order.deliveries == None,  # Ensures order is unassigned
         Order.latitude.isnot(None),
         Order.longitude.isnot(None)
     ).all()
@@ -1528,7 +1528,6 @@ def dashboard_updates():
                      .join(Delivery)
                      .filter(Delivery.status == 'delivered')
                      .scalar()) or 0
-    remaining_bags = total_bags - completed_bags
     
     # Calculate progress
     progress = (completed_deliveries / total_orders * 100) if total_orders > 0 else 0
@@ -1575,7 +1574,6 @@ def dashboard_updates():
             'total_orders': total_orders,
             'total_bags': total_bags,
             'completed_bags': completed_bags,
-            'remaining_bags': remaining_bags,
             'progress': progress,
             'status_counts': status_counts
         },
@@ -1589,79 +1587,50 @@ def print_cards():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
-    school_lat = float(current_app.config['SCHOOL_LATITUDE'])
-    school_lng = float(current_app.config['SCHOOL_LONGITUDE'])
+    # Get active routes
+    active_routes = Route.query.filter_by(is_active=True).all()
     
-    # Get all orders with valid coordinates
-    orders = Order.query.filter(
-        Order.latitude.isnot(None),
-        Order.longitude.isnot(None)
-    ).all()
-    
-    # Calculate distance from school for each order
-    for order in orders:
-        order.distance_from_school = calculate_distance(
-            school_lat, school_lng,
-            float(order.latitude), float(order.longitude)
-        )
-    
-    # Orders without coordinates
-    orders_no_coords = Order.query.filter(
-        (Order.latitude.is_(None)) | 
-        (Order.longitude.is_(None))
-    ).all()
-    
-    # Group orders by mulch type
-    orders_by_mulch = {}
-    for order in orders:
-        if order.mulch_type not in orders_by_mulch:
-            orders_by_mulch[order.mulch_type] = []
-        orders_by_mulch[order.mulch_type].append(order)
-    
-    # For each mulch type, create one optimized route
+    # Structure data for template
     clustered_orders = {}
-    for mulch_type, mulch_orders in orders_by_mulch.items():
-        # Sort by distance from school
-        mulch_orders.sort(key=lambda x: x.distance_from_school)
-        
-        # Store as a single route/cluster
-        clustered_orders[mulch_type] = [mulch_orders]  # Single cluster per mulch type
-    
-    # Calculate stats
     stats = {
-        'total_orders': len(orders) + len(orders_no_coords),
+        'total_orders': 0,
         'mulch_counts': {},
-        'unmatched_addresses': len(orders_no_coords)
+        'unmatched_addresses': 0
     }
     
-    # Process orders with coordinates
-    for mulch_type, clusters in clustered_orders.items():
-        total_orders = len(clusters[0])  # Only one cluster per type now
-        total_bags = sum(order.bags_ordered for order in clusters[0])
-        stats['mulch_counts'][mulch_type] = {
-            'count': total_orders,
-            'bags': total_bags,
-            'clusters': 1  # Always one cluster now
+    for route in active_routes:
+        if route.mulch_type not in clustered_orders:
+            clustered_orders[route.mulch_type] = []
+        
+        # Get stops in order
+        stops = (RouteStop.query
+                .filter_by(route_id=route.id)
+                .order_by(RouteStop.stop_number)
+                .all())
+        
+        # Create ordered list of orders
+        ordered_stops = [stop.order for stop in stops]
+        clustered_orders[route.mulch_type].append(ordered_stops)
+        
+        # Update stats
+        stats['total_orders'] += len(ordered_stops)
+        stats['mulch_counts'][route.mulch_type] = {
+            'count': len(ordered_stops),
+            'bags': route.total_bags,
+            'clusters': 1
         }
     
-    # Process orders without coordinates
-    no_coords_by_mulch = {}
-    if orders_no_coords:
-        for order in orders_no_coords:
-            if order.mulch_type not in no_coords_by_mulch:
-                no_coords_by_mulch[order.mulch_type] = []
-            no_coords_by_mulch[order.mulch_type].append(order)
-            
-            # Update stats
-            if order.mulch_type not in stats['mulch_counts']:
-                stats['mulch_counts'][order.mulch_type] = {'count': 0, 'bags': 0, 'clusters': 0}
-            stats['mulch_counts'][order.mulch_type]['count'] += 1
-            stats['mulch_counts'][order.mulch_type]['bags'] += order.bags_ordered
+    # Get orders without routes
+    unrouted_orders = (Order.query
+                      .filter(~Order.route_stops.any())
+                      .all())
+    
+    stats['unmatched_addresses'] = len(unrouted_orders)
     
     return render_template(
         'admin/print_cards.html',
         clustered_orders=clustered_orders,
-        orders_no_coords=no_coords_by_mulch,
+        orders_no_coords=unrouted_orders,
         stats=stats
     )
 
@@ -1929,11 +1898,16 @@ def view_routes():
                 'total_bags': sum(stop.get('bags_ordered', 0) for stop in delivery_stops)
             }
             clustered_data['stats']['total_orders'] += len(delivery_stops)
-        else:
-            error_msg = f'Failed to optimize route for {mulch_type}'
-            print(error_msg)
-            clustered_data['errors'].append(error_msg)
-            flash(error_msg, 'error')
+            
+            try:
+                db.session.commit()
+                print(f"Saved route for {mulch_type}")
+            except Exception as e:
+                db.session.rollback()
+                error_msg = f"Failed to save route for {mulch_type}: {str(e)}"
+                print(error_msg)
+                clustered_data['errors'].append(error_msg)
+                flash(error_msg, 'error')
 
     # If we have any routes, show them even if some failed
     if clustered_data['routes']:

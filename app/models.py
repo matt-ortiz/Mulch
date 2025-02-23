@@ -68,3 +68,28 @@ class Settings(db.Model):
     school_address = db.Column(db.String(200), nullable=True)
     school_latitude = db.Column(db.Float, nullable=True)
     school_longitude = db.Column(db.Float, nullable=True)
+
+# Add new model for routes
+class Route(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    mulch_type = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    total_bags = db.Column(db.Integer)
+    total_stops = db.Column(db.Integer)
+    total_distance = db.Column(db.Float)  # in km
+    
+    # Store the full route data as JSON
+    route_data = db.Column(db.JSON)
+    
+    # Store whether this is the active route for this mulch type
+    is_active = db.Column(db.Boolean, default=True)
+
+class RouteStop(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    route_id = db.Column(db.Integer, db.ForeignKey('route.id'))
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
+    stop_number = db.Column(db.Integer)
+    distance_from_prev = db.Column(db.Float)  # in km
+    
+    route = db.relationship('Route', backref='stops')
+    order = db.relationship('Order', backref='route_stops')
