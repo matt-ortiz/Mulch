@@ -1587,6 +1587,12 @@ def print_cards():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
+    # Get settings for school location
+    settings = Settings.query.first()
+    if not settings:
+        flash('Please configure school location in settings first', 'error')
+        return redirect(url_for('admin.settings'))
+    
     # Get active routes
     active_routes = Route.query.filter_by(is_active=True).all()
     
@@ -1608,8 +1614,19 @@ def print_cards():
                 .order_by(RouteStop.stop_number)
                 .all())
         
-        # Create ordered list of orders
-        ordered_stops = [stop.order for stop in stops]
+        # Create ordered list of orders and calculate distances
+        ordered_stops = []
+        for stop in stops:
+            order = stop.order
+            # Calculate distance from school
+            order.distance_from_school = haversine_distance(
+                settings.school_latitude,
+                settings.school_longitude,
+                order.latitude,
+                order.longitude
+            )
+            ordered_stops.append(order)
+            
         clustered_orders[route.mulch_type].append(ordered_stops)
         
         # Update stats
@@ -1620,17 +1637,36 @@ def print_cards():
             'clusters': 1
         }
     
-    # Get orders without routes
+    # Get orders without routes and calculate their distances
     unrouted_orders = (Order.query
                       .filter(~Order.route_stops.any())
                       .all())
     
+    # Calculate distances for unrouted orders
+    for order in unrouted_orders:
+        if order.latitude and order.longitude:
+            order.distance_from_school = haversine_distance(
+                settings.school_latitude,
+                settings.school_longitude,
+                order.latitude,
+                order.longitude
+            )
+        else:
+            order.distance_from_school = None
+    
     stats['unmatched_addresses'] = len(unrouted_orders)
+    
+    # Group unrouted orders by mulch type
+    unrouted_by_mulch = {}
+    for order in unrouted_orders:
+        if order.mulch_type not in unrouted_by_mulch:
+            unrouted_by_mulch[order.mulch_type] = []
+        unrouted_by_mulch[order.mulch_type].append(order)
     
     return render_template(
         'admin/print_cards.html',
         clustered_orders=clustered_orders,
-        orders_no_coords=unrouted_orders,
+        orders_no_coords=unrouted_by_mulch,
         stats=stats
     )
 
