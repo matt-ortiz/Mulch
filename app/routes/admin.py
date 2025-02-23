@@ -1235,7 +1235,10 @@ def suggest_load(driver_id):
     ).all()
     
     if current_deliveries:
-        # Return currently assigned orders
+        total_bags = sum(d.order.bags_ordered for d in current_deliveries)
+        # Fix capacity calculation
+        capacity_used = (total_bags / float(driver.vehicle_capacity)) if driver.vehicle_capacity else 0
+        
         return jsonify({
             'orders': [{
                 'id': d.order.id,
@@ -1249,8 +1252,8 @@ def suggest_load(driver_id):
                 'is_assigned': True
             } for d in current_deliveries],
             'stats': {
-                'total_bags': sum(d.order.bags_ordered for d in current_deliveries),
-                'capacity_used': sum(d.order.bags_ordered for d in current_deliveries) / driver.vehicle_capacity
+                'total_bags': total_bags,
+                'capacity_used': capacity_used  # This will now be a proper percentage
             }
         })
 
@@ -1315,12 +1318,15 @@ def suggest_load(driver_id):
         current_index = (current_index + 1) % len(suggested_loads)
 
     best_load = suggested_loads[current_index]
+    total_bags = best_load['total_bags']
+    # Fix capacity calculation here too
+    capacity_used = (total_bags / float(driver.vehicle_capacity)) if driver.vehicle_capacity else 0
     
     return jsonify({
         'orders': best_load['orders'],
         'stats': {
-            'total_bags': best_load['total_bags'],
-            'capacity_used': best_load['total_bags'] / driver.vehicle_capacity,
+            'total_bags': total_bags,
+            'capacity_used': capacity_used,  # This will now be a proper percentage
             'total_distance': best_load['total_distance'],
             'suggestion_index': current_index
         }
