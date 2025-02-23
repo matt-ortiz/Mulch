@@ -1236,7 +1236,6 @@ def suggest_load(driver_id):
     
     if current_deliveries:
         total_bags = sum(d.order.bags_ordered for d in current_deliveries)
-        # Fix capacity calculation
         capacity_used = (total_bags / float(driver.vehicle_capacity)) if driver.vehicle_capacity else 0
         
         return jsonify({
@@ -1253,7 +1252,7 @@ def suggest_load(driver_id):
             } for d in current_deliveries],
             'stats': {
                 'total_bags': total_bags,
-                'capacity_used': capacity_used  # This will now be a proper percentage
+                'capacity_used': capacity_used
             }
         })
 
@@ -1288,27 +1287,29 @@ def suggest_load(driver_id):
 
         if candidate_orders:
             # Use GraphHopper to optimize the route for these orders
-            optimized_route = optimize_with_graphhopper(candidate_orders, settings)
-            if optimized_route:
-                # Remove school points and calculate route metrics
-                delivery_stops = [stop for stop in optimized_route if not stop.get('is_school')]
-                total_distance = sum(stop.get('distance_from_prev', 0) for stop in optimized_route)
-                
-                suggested_loads.append({
-                    'orders': delivery_stops,
-                    'total_bags': current_bags,
-                    'total_distance': total_distance,
-                    'efficiency': current_bags / len(delivery_stops),  # Bags per stop
-                    'distance_efficiency': current_bags / total_distance if total_distance > 0 else 0,  # Bags per km
-                    'mulch_type': mulch_type
-                })
+            optimized_routes = optimize_with_graphhopper(candidate_orders, settings)
+            if optimized_routes:
+                for route in optimized_routes:
+                    # Remove school points and calculate route metrics
+                    delivery_stops = [stop for stop in route if not stop['is_school']]
+                    total_distance = sum(stop['distance_from_prev'] for stop in route)
+                    total_bags = sum(stop['bags_ordered'] for stop in delivery_stops)
+                    
+                    suggested_loads.append({
+                        'orders': delivery_stops,
+                        'total_bags': total_bags,
+                        'total_distance': total_distance,
+                        'efficiency': total_bags / len(delivery_stops),  # Bags per stop
+                        'distance_efficiency': total_bags / total_distance if total_distance > 0 else 0,  # Bags per mile
+                        'mulch_type': mulch_type
+                    })
 
     if not suggested_loads:
         return jsonify({'orders': [], 'stats': {'total_bags': 0, 'capacity_used': 0}})
 
     # Sort loads by multiple factors
     suggested_loads.sort(key=lambda x: (
-        x['distance_efficiency'],  # Prioritize efficient routes (bags/km)
+        x['distance_efficiency'],  # Prioritize efficient routes (bags/mile)
         x['efficiency'],  # Then by bags per stop
         x['total_bags'] / driver.vehicle_capacity  # Then by capacity utilization
     ), reverse=True)
@@ -1319,14 +1320,13 @@ def suggest_load(driver_id):
 
     best_load = suggested_loads[current_index]
     total_bags = best_load['total_bags']
-    # Fix capacity calculation here too
     capacity_used = (total_bags / float(driver.vehicle_capacity)) if driver.vehicle_capacity else 0
     
     return jsonify({
         'orders': best_load['orders'],
         'stats': {
             'total_bags': total_bags,
-            'capacity_used': capacity_used,  # This will now be a proper percentage
+            'capacity_used': capacity_used,
             'total_distance': best_load['total_distance'],
             'suggestion_index': current_index
         }
