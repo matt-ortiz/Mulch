@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .routes-container {
+        padding: 24px;
+    }
+
+    .driver-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+
+    .driver-header {
+        padding: 16px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .driver-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .driver-capacity {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .loads-container {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+    }
+
+    .load-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .load-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .load-title {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .load-bags {
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .order-list {
+        margin-bottom: 16px;
+    }
+
+    .order-item {
+        padding: 8px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 14px;
+    }
+
+    .order-item:last-child {
+        border-bottom: none;
+    }
+
+    .mulch-dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+
+    .load-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .btn-assign {
+        width: auto;
+        flex: 1;
+    }
+
+    .btn-view-map {
+        padding: 8px 16px;
+        background: #f1f5f9;
+        color: #334155;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .btn-view-map:hover {
+        background: #e2e8f0;
+    }
+
+    .load-stats {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .load-efficiency {
+        font-size: 12px;
+        color: #64748b;
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 12px;
+    }
+
+    .order-address {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
+    }
+
+    .load-summary {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: #64748b;
+        font-size: 12px;
+        margin: 12px 0;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .summary-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 24px;
+        padding: 20px;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+    }
+
+    .summary-card {
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .summary-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .summary-label {
+        color: #64748b;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="routes-container">
+    <h1 class="page-title">AI Route Planning</h1>
+    
+    <div class="summary-section">
+        {% set total_loads = namespace(value=0) %}
+        {% set total_stops = namespace(value=0) %}
+        {% set total_bags = namespace(value=0) %}
+        {% for driver in drivers %}
+            {% set loads = suggested_loads.get(driver.id, []) %}
+            {% for load in loads %}
+                {% set total_loads.value = total_loads.value + 1 %}
+                {% set total_stops.value = total_stops.value + load.stops %}
+                {% set total_bags.value = total_bags.value + load.total_bags %}
+            {% endfor %}
+        {% endfor %}
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-value">{{ drivers|length }}</div>
+                <div class="summary-label">Available Drivers</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ total_loads.value }}</div>
+                <div class="summary-label">Total Loads</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ total_stops.value }}</div>
+                <div class="summary-label">Total Stops</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ total_bags.value }}</div>
+                <div class="summary-label">Total Bags</div>
+            </div>
+        </div>
+    </div>
+    
+    {% for driver in drivers %}
+    <div class="driver-section">
+        <div class="driver-header">
+            <div>
+                <div class="driver-name">{{ driver.first_name }}</div>
+                <div class="driver-capacity">Vehicle Capacity: {{ driver.vehicle_capacity }} bags</div>
+            </div>
+            {% set loads = suggested_loads.get(driver.id, []) %}
+            {% set total_bags = namespace(value=0) %}
+            {% set total_stops = namespace(value=0) %}
+            {% for load in loads %}
+                {% set total_bags.value = total_bags.value + load.total_bags %}
+                {% set total_stops.value = total_stops.value + load.stops %}
+            {% endfor %}
+            <div class="load-stats">
+                <div class="stat-item">
+                    <div class="stat-value">{{ loads|length }}</div>
+                    <div class="stat-label">Loads</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_stops.value }}</div>
+                    <div class="stat-label">Stops</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ total_bags.value }}</div>
+                    <div class="stat-label">Total Bags</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="loads-container">
+            {% for load in loads %}
+            <div class="load-card">
+                <div class="load-header">
+                    <div class="load-title">
+                        {% set mulch_colors = {
+                            'Black Shredded Hardwood': '#000000',
+                            'Red Shredded Hardwood': '#8B4513',
+                            'Shredded Hardwood (Natural brown)': '#DEB887'
+                        } %}
+                        <span class="mulch-dot" style="background: {{ mulch_colors[load.mulch_type] }}"></span>
+                        Load {{ loop.index }}
+                    </div>
+                    <div class="load-stats">
+                        <div class="load-bags">{{ load.total_bags }} bags</div>
+                        <div class="load-efficiency">
+                            {{ "%.0f"|format(load.total_bags / driver.vehicle_capacity * 100) }}% capacity
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="order-list">
+                    {% for order in load.orders %}
+                    <div class="order-item">
+                        {{ order.bags_ordered }} bags - {{ order.customer_name }}
+                        <div class="order-address">{{ order.address }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="load-summary">
+                    <span>{{ load.stops }} stops</span>
+                    <span>•</span>
+                    <span>{{ load.total_bags }} bags total</span>
+                    <span>•</span>
+                    <span>{{ "%.0f"|format(load.total_bags / driver.vehicle_capacity * 100) }}% full</span>
+                </div>
+                
+                <div class="load-actions">
+                    <button class="btn-assign" onclick="assignLoad({{ driver.id }}, {{ load.orders|map(attribute='id')|list|tojson }})">
+                        <i class="lucide-check"></i>
+                        Assign Load
+                    </button>
+                    <button class="btn-view-map" onclick="window.location.href='{{ url_for('admin.view_map', driver_id=driver.id, order_ids=load.orders|map(attribute='id')|join(',')) }}'">
+                        <i class="lucide-map"></i>
+                        Map
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getMulchColor(mulchType) {
+    const colors = {
+        'Black Shredded Hardwood': '#000000',
+        'Red Shredded Hardwood': '#8B4513',
+        'Shredded Hardwood (Natural brown)': '#DEB887'
+    };
+    return colors[mulchType] || '#808080';
+}
+
+function assignLoad(driverId, orderIds) {
+    if (!confirm('Assign this load to the driver?')) return;
+    
+    fetch('/admin/assign-load', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            driver_id: driverId,
+            order_ids: orderIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Failed to assign load');
+        }
+    });
+}
+</script>
+{% endblock %} 

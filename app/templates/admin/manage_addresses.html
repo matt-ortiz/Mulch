@@ -1,0 +1,842 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+        background-color: #f8fafc;
+    }
+
+    .page-header {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .dropdown {
+        position: relative;
+    }
+
+    .dropdown-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1e293b;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .dropdown-toggle:hover {
+        background: #f1f5f9;
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        min-width: 200px;
+        display: none;
+        z-index: 1000;
+    }
+
+    .dropdown-menu.show {
+        display: block;
+    }
+
+    .dropdown-menu a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        color: #1e293b;
+        text-decoration: none;
+        transition: background-color 0.2s;
+    }
+
+    .dropdown-menu a:hover {
+        background: #f8fafc;
+    }
+
+    .dropdown-menu a:first-child {
+        border-radius: 6px 6px 0 0;
+    }
+
+    .dropdown-menu a:last-child {
+        border-radius: 0 0 6px 6px;
+    }
+
+    .address-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 24px;
+    }
+
+    .address-list {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);  /* Adjust for header and padding */
+    }
+
+    .filters {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .filter-select {
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: white;
+        min-width: 150px;
+    }
+
+    .table-container {
+        flex: 1;
+        overflow-y: auto;
+        /* Add smooth scrolling */
+        scroll-behavior: smooth;
+    }
+
+    /* Add some styling for the scrollbar */
+    .table-container::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .table-container::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+
+    .table-container::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .table-container::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    .address-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .address-table thead {
+        position: sticky;
+        top: 0;
+        background: #f8fafc;
+        z-index: 1;
+    }
+
+    .address-table th {
+        background: #f8fafc;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 500;
+        color: #64748b;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .address-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .map-panel {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 24px;
+    }
+
+    #map {
+        height: 250px;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .stat-card {
+        background: #f8fafc;
+        padding: 8px;
+        border-radius: 6px;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-valid {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-invalid {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .address-details {
+        padding: 12px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
+    .form-control:read-only {
+        background-color: #f8fafc;
+    }
+
+    .coordinate-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 8px;
+    }
+
+    .coordinate-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .address-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .address-row:hover {
+        background-color: #f8fafc;
+    }
+
+    .address-row.selected {
+        background-color: #e0e7ff !important;  /* Light indigo color */
+        border-left: 4px solid #4f46e5;  /* Indigo accent */
+    }
+
+    .address-row.selected:hover {
+        background-color: #e0e7ff !important;
+    }
+
+    .customer-details {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .contact-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .detail-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .outlier {
+        background-color: #fff1f2;
+    }
+    
+    .distance-badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .distance-outlier {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .far-delivery {
+        background-color: #fff1f1 !important;
+        border-left: 4px solid #dc2626 !important;
+    }
+    
+    .far-delivery:hover {
+        background-color: #fee2e2 !important;
+    }
+    
+    .far-delivery .distance-badge {
+        background: #fee2e2;
+        color: #dc2626;
+        font-weight: 600;
+    }
+    
+    .stat-card.far-deliveries {
+        background-color: #fff1f1;
+        border: 1px solid #fee2e2;
+    }
+    
+    .stat-card.far-deliveries .stat-value {
+        color: #dc2626;
+    }
+    
+    /* Add a warning icon to far deliveries */
+    .far-delivery .distance-badge::before {
+        content: "⚠️";
+        margin-right: 4px;
+    }
+
+    .address-input-group {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    
+    .address-input-group .form-control {
+        margin-bottom: 0;
+    }
+
+    /* Add new styles */
+    .incomplete-address {
+        background-color: #fef9c3 !important;  /* Light yellow background */
+        border-left: 4px solid #ca8a04 !important;  /* Yellow accent */
+    }
+    
+    .incomplete-address:hover {
+        background-color: #fef08a !important;  /* Slightly darker yellow on hover */
+    }
+    
+    .incomplete-badge {
+        background: #fef9c3;
+        color: #854d0e;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Address Management</h1>
+            <div class="header-actions">
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown()">
+                        <i class="lucide-refresh-cw"></i>
+                        Geocoding Options
+                        <i class="lucide-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu" id="geocodeDropdown">
+                        <a href="#" onclick="retryAllGeocoding()">
+                            <i class="lucide-refresh-cw"></i>
+                            Retry Failed Addresses
+                        </a>
+                        <a href="#" onclick="geocodeAllAddresses()">
+                            <i class="lucide-map-pin"></i>
+                            Geocode All Addresses
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="address-grid">
+        <!-- Address List Section -->
+        <div class="address-list">
+            <div class="filters">
+                <input type="text" class="search-input" id="addressSearch" 
+                       placeholder="Search addresses..." onkeyup="filterAddresses()">
+                <select class="filter-select" id="statusFilter" onchange="filterAddresses()">
+                    <option value="all">All Addresses</option>
+                    <option value="valid">Valid</option>
+                    <option value="invalid">Invalid</option>
+                    <option value="incomplete">Incomplete</option>
+                    <option value="far">Far (>{{ '%.1f'|format(far_threshold) }}mi)</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <table class="address-table">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Address</th>
+                            <th>Status</th>
+                            <th>Distance from School</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders_without_coords %}
+                        <tr class="address-row {{ 'far-delivery' if order.is_far|default(false) }}" 
+                            data-id="{{ order.id }}" 
+                            onclick="verifyOnMap({{ order.id }}, '{{ order.address }}', {{ order.latitude or 'null' }}, {{ order.longitude or 'null' }}, '{{ order.customer_name }}', '{{ order.phone }}', '{{ order.email }}')">
+                            <td>{{ order.customer_name }}</td>
+                            <td>
+                                <div>{{ order.address }}</div>
+                                {% if order.latitude and order.longitude %}
+                                <div style="font-size: 12px; color: #64748b;">
+                                    {{ order.latitude }}, {{ order.longitude }}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge {{ 'status-valid' if order.latitude else 'status-invalid' }}">
+                                    {{ 'Valid' if order.latitude else 'Invalid' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if order.distance_from_school is defined %}
+                                <span class="distance-badge {% if order.is_outlier %}distance-outlier{% endif %}">
+                                    {{ order.distance_from_school }} mi
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Map and Stats Panel -->
+        <div class="map-panel">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{ total_orders }}</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ geocoded_orders }}</div>
+                    <div class="stat-label">Valid</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ orders_count }}</div>
+                    <div class="stat-label">Invalid</div>
+                </div>
+                <div class="stat-card {% if far_deliveries_count > 0 %}far-deliveries{% endif %}">
+                    <div class="stat-value">{{ far_deliveries_count }}</div>
+                    <div class="stat-label">Far (>{{ '%.1f'|format(far_threshold) }}mi)</div>
+                </div>
+            </div>
+
+            <div id="map"></div>
+            
+            <!-- Address Details Section -->
+            <div class="address-details" id="addressDetails" style="display: none;">
+                <h3 class="mb-3">Address Details</h3>
+                <div class="mb-3">
+                    <label class="form-label">Customer</label>
+                    <input type="text" class="form-control" id="selectedCustomer" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Address</label>
+                    <div class="address-input-group">
+                        <input type="text" class="form-control" id="selectedAddress">
+                        <button class="btn btn-secondary" onclick="updateAddress()">
+                            <i class="lucide-save"></i>
+                            Update Address
+                        </button>
+                    </div>
+                </div>
+                <div class="contact-info">
+                    <div>
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="selectedPhone" readonly>
+                    </div>
+                    <div>
+                        <label class="form-label">Email</label>
+                        <input type="text" class="form-control" id="selectedEmail" readonly>
+                    </div>
+                </div>
+                <div class="coordinate-inputs">
+                    <div>
+                        <label class="form-label">Latitude</label>
+                        <input type="number" class="coordinate-input" id="selectedLat" 
+                               placeholder="Latitude" step="any">
+                    </div>
+                    <div>
+                        <label class="form-label">Longitude</label>
+                        <input type="number" class="coordinate-input" id="selectedLng" 
+                               placeholder="Longitude" step="any">
+                    </div>
+                </div>
+                <div class="detail-actions">
+                    <button class="btn btn-secondary" onclick="retryGeocoding(selectedOrderId)">
+                        <i class="lucide-refresh-cw"></i>
+                        Retry Geocoding
+                    </button>
+                    <button class="btn btn-primary" onclick="saveCoordinates()">
+                        <i class="lucide-save"></i>
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map;
+let currentMarker;
+let selectedOrderId;
+
+// Initialize map
+document.addEventListener('DOMContentLoaded', function() {
+    map = L.map('map').setView([{{ school_location.lat }}, {{ school_location.lng }}], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Add school marker
+    const schoolIcon = L.divIcon({
+        html: '<i class="lucide-school" style="color: #2563eb; font-size: 24px;"></i>',
+        className: 'school-marker',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+
+    L.marker([{{ school_location.lat }}, {{ school_location.lng }}], {
+        icon: schoolIcon
+    }).addTo(map).bindPopup("West Springfield High School");
+
+    // Add click handler for manual coordinate selection
+    map.on('click', function(e) {
+        if (selectedOrderId) {
+            document.getElementById('selectedLat').value = e.latlng.lat.toFixed(6);
+            document.getElementById('selectedLng').value = e.latlng.lng.toFixed(6);
+            updateMarker(e.latlng);
+        }
+    });
+});
+
+function updateMarker(latlng) {
+    if (currentMarker) {
+        map.removeLayer(currentMarker);
+    }
+    currentMarker = L.marker(latlng, {
+        draggable: true
+    }).addTo(map);
+
+    // Update coordinates when marker is dragged
+    currentMarker.on('dragend', function(e) {
+        const position = e.target.getLatLng();
+        document.getElementById('selectedLat').value = position.lat.toFixed(6);
+        document.getElementById('selectedLng').value = position.lng.toFixed(6);
+    });
+}
+
+function verifyOnMap(orderId, address, lat, lng, customerName, phone, email) {
+    selectedOrderId = orderId;
+    
+    // Remove previous selection and highlight new row
+    document.querySelectorAll('.address-row').forEach(row => {
+        row.classList.remove('selected');
+    });
+    document.querySelector(`[data-id="${orderId}"]`).classList.add('selected');
+    
+    const addressDetails = document.getElementById('addressDetails');
+    addressDetails.style.display = 'block';
+    
+    document.getElementById('selectedCustomer').value = customerName;
+    document.getElementById('selectedAddress').value = address;
+    document.getElementById('selectedPhone').value = phone || 'N/A';
+    document.getElementById('selectedEmail').value = email || 'N/A';
+    
+    if (lat && lng) {
+        // If we have coordinates, show them
+        document.getElementById('selectedLat').value = lat;
+        document.getElementById('selectedLng').value = lng;
+        const latlng = [lat, lng];
+        map.setView(latlng, 16);
+        updateMarker(latlng);
+    } else {
+        // Try to geocode the address
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lng = parseFloat(data[0].lon);
+                document.getElementById('selectedLat').value = lat.toFixed(6);
+                document.getElementById('selectedLng').value = lng.toFixed(6);
+                const latlng = [lat, lng];
+                map.setView(latlng, 16);
+                updateMarker(latlng);
+            } else {
+                alert('Could not find coordinates for this address. Please click on the map to set location manually.');
+                map.setView([{{ school_location.lat }}, {{ school_location.lng }}], 12);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error geocoding address. Please try again or set location manually.');
+        });
+    }
+}
+
+function saveCoordinates() {
+    const lat = document.getElementById('selectedLat').value;
+    const lng = document.getElementById('selectedLng').value;
+    
+    fetch(`/admin/update-coordinates/${selectedOrderId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ lat, lng })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+
+function isIncompleteAddress(address) {
+    // Check for common address components
+    const hasStreetType = /\b(road|rd|street|st|avenue|ave|lane|ln|court|ct|circle|cir|drive|dr|way|place|pl|boulevard|blvd)\b/i.test(address);
+    const hasCity = /(alexandria|springfield|lorton|fairfax|burke)/i.test(address);
+    const hasState = /(VA|virginia)/i.test(address);
+    const hasZip = /\d{5}/.test(address);
+    
+    // Address is incomplete if it's missing street type or city/state
+    return !hasStreetType || (!hasCity && !hasState && !hasZip);
+}
+
+function filterAddresses() {
+    const searchText = document.getElementById('addressSearch').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    document.querySelectorAll('.address-row').forEach(row => {
+        const address = row.querySelector('div').textContent.toLowerCase();
+        const hasCoords = row.querySelector('.status-valid') !== null;
+        const isFar = row.classList.contains('far-delivery');
+        const isIncomplete = isIncompleteAddress(address);
+        
+        // Add or remove incomplete-address class
+        row.classList.toggle('incomplete-address', isIncomplete);
+        
+        const matchesSearch = address.includes(searchText);
+        const matchesStatus = 
+            statusFilter === 'all' || 
+            (statusFilter === 'valid' && hasCoords && !isFar) ||
+            (statusFilter === 'invalid' && !hasCoords) ||
+            (statusFilter === 'incomplete' && isIncomplete) ||
+            (statusFilter === 'far' && isFar);
+        
+        row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+    });
+}
+
+// Call filterAddresses on page load to highlight incomplete addresses
+document.addEventListener('DOMContentLoaded', filterAddresses);
+
+function retryGeocoding(orderId) {
+    fetch(`/admin/retry-geocoding/${orderId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Geocoding failed');
+        }
+    });
+}
+
+function retryAllGeocoding() {
+    if (!confirm('This will attempt to geocode all invalid addresses. Continue?')) {
+        return;
+    }
+    
+    fetch('/admin/retry-all-geocoding', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Batch geocoding failed');
+        }
+    });
+}
+
+function updateAddress() {
+    const newAddress = document.getElementById('selectedAddress').value;
+    
+    fetch(`/admin/update-address/${selectedOrderId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address: newAddress })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // After updating the address, try to geocode it
+            retryGeocoding(selectedOrderId);
+        } else {
+            alert('Failed to update address');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating address');
+    });
+}
+
+function geocodeAllAddresses() {
+    if (!confirm('This will attempt to geocode ALL addresses in the database. Continue?')) {
+        return;
+    }
+    
+    fetch('/admin/geocode-all', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.error || 'Geocoding failed');
+        }
+    });
+}
+
+function toggleDropdown() {
+    const dropdown = document.getElementById('geocodeDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdown when clicking outside
+window.onclick = function(event) {
+    if (!event.target.matches('.dropdown-toggle')) {
+        const dropdowns = document.getElementsByClassName('dropdown-menu');
+        for (let dropdown of dropdowns) {
+            if (dropdown.classList.contains('show')) {
+                dropdown.classList.remove('show');
+            }
+        }
+    }
+}
+</script>
+{% endblock %} 

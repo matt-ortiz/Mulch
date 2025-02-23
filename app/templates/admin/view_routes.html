@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    .map-container {
+        height: calc(100vh - 100px);
+        margin: 20px;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    #map {
+        height: 100%;
+    }
+
+    .route-controls {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .mulch-type-toggle {
+        margin-bottom: 10px;
+    }
+
+    .route-legend {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+
+    .route-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+
+    .color-box {
+        width: 20px;
+        height: 20px;
+        margin-right: 10px;
+        border-radius: 4px;
+    }
+
+    .route-stats {
+        font-size: 0.9em;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="route-controls">
+    <h3>Delivery Routes</h3>
+    {% for mulch_type in clustered_data.routes.keys() %}
+    <div class="mulch-type-toggle">
+        <label>
+            <input type="checkbox" checked onchange="toggleMulchType('{{ mulch_type }}')" />
+            {{ mulch_type }}
+        </label>
+    </div>
+    {% endfor %}
+    
+    <div class="route-legend">
+        <h4>Route Groups</h4>
+        <div id="routeStats"></div>
+    </div>
+</div>
+
+<div class="map-container">
+    <div id="map"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let map;
+    let routeLayers = {};
+    const colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628'];
+    
+    // Store route data
+    const routeData = {{ clustered_data|tojson|safe }};
+    
+    function initMap() {
+        // Initialize map centered on school
+        map = L.map('map').setView(
+            [routeData.school.lat, routeData.school.lng],
+            12
+        );
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Add school marker
+        L.marker([routeData.school.lat, routeData.school.lng])
+            .bindPopup('<b>School</b><br>' + routeData.school.address)
+            .addTo(map);
+        
+        // Create route layers for each mulch type
+        Object.entries(routeData.routes).forEach(([mulchType, clusters], typeIndex) => {
+            routeLayers[mulchType] = [];
+            
+            clusters.forEach((cluster, clusterIndex) => {
+                const color = colors[clusterIndex % colors.length];
+                const routeLayer = L.layerGroup();
+                
+                // Add markers and connect them with lines
+                cluster.forEach((order, orderIndex) => {
+                    // Create marker
+                    const marker = L.circleMarker([order.latitude, order.longitude], {
+                        radius: 8,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                    
+                    // Add popup
+                    marker.bindPopup(`
+                        <b>${order.customer_name}</b><br>
+                        ${order.address}<br>
+                        ${order.bags_ordered} bags - ${mulchType}<br>
+                        Route ${clusterIndex + 1}, Stop ${orderIndex + 1}
+                    `);
+                    
+                    routeLayer.addLayer(marker);
+                    
+                    // Connect to next point
+                    if (orderIndex < cluster.length - 1) {
+                        const nextOrder = cluster[orderIndex + 1];
+                        const line = L.polyline(
+                            [
+                                [order.latitude, order.longitude],
+                                [nextOrder.latitude, nextOrder.longitude]
+                            ],
+                            {
+                                color: color,
+                                weight: 3,
+                                opacity: 0.6,
+                                dashArray: '10,10'
+                            }
+                        );
+                        routeLayer.addLayer(line);
+                    }
+                });
+                
+                routeLayer.addTo(map);
+                routeLayers[mulchType].push(routeLayer);
+            });
+        });
+        
+        updateRouteStats();
+    }
+    
+    function toggleMulchType(mulchType) {
+        routeLayers[mulchType].forEach(layer => {
+            if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            } else {
+                map.addLayer(layer);
+            }
+        });
+    }
+    
+    function updateRouteStats() {
+        const statsHtml = Object.entries(routeData.routes).map(([mulchType, clusters]) => {
+            const routeStats = clusters.map((cluster, index) => {
+                const color = colors[index % colors.length];
+                const totalBags = cluster.reduce((sum, order) => sum + order.bags_ordered, 0);
+                return `
+                    <div class="route-item">
+                        <div class="color-box" style="background-color: ${color}"></div>
+                        <div class="route-stats">
+                            Route ${index + 1}: ${cluster.length} stops, ${totalBags} bags
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            return `
+                <div class="mulch-group">
+                    <h5>${mulchType}</h5>
+                    ${routeStats}
+                </div>
+            `;
+        }).join('');
+        
+        document.getElementById('routeStats').innerHTML = statsHtml;
+    }
+    
+    document.addEventListener('DOMContentLoaded', initMap);
+</script>
+{% endblock %} 

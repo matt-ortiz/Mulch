@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .auth-container {
+        max-width: 400px;
+        margin: 40px auto;
+        padding: 24px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .auth-header {
+        text-align: center;
+        margin-bottom: 24px;
+    }
+
+    .auth-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .auth-subtitle {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .auth-footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .auth-footer a {
+        color: #2563eb;
+        text-decoration: none;
+    }
+
+    .auth-footer a:hover {
+        text-decoration: underline;
+    }
+
+    .flash-messages {
+        margin-bottom: 16px;
+    }
+
+    .flash-message {
+        padding: 12px;
+        border-radius: 6px;
+        background: #fee2e2;
+        color: #991b1b;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    /* Logo/Icon styles */
+    .auth-logo {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 16px;
+        background: #2563eb;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        transition: transform 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .auth-logo svg {
+        width: 48px;
+        height: 48px;
+        stroke-width: 1.5;
+        filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.3))
+               drop-shadow(-1px -1px 1px rgba(255,255,255,0.2));
+        transform: translateY(2px);
+    }
+
+    .auth-logo::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60%;
+        background: linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.15),
+            transparent
+        );
+        border-radius: 12px 12px 50% 50%;
+    }
+
+    .auth-logo:hover {
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-header">
+        <div class="auth-logo">
+            <i data-lucide="truck"></i>
+        </div>
+        <h1 class="auth-title">Welcome Back</h1>
+        <p class="auth-subtitle">Sign in to your account</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            <div class="flash-message">{{ messages[0] }}</div>
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="password">Driver Code</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            Sign In
+        </button>
+    </form>
+
+    <div class="auth-footer">
+        Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .settings-container {
+        max-width: 800px;  /* Increased to accommodate both sections */
+        margin: 24px auto;
+        padding: 24px;
+    }
+
+    .settings-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .settings-header {
+        margin-bottom: 24px;
+    }
+
+    .settings-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .settings-subtitle {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 52px;
+        height: 28px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #e2e8f0;
+        transition: .4s;
+        border-radius: 28px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: #2563eb;
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+
+    .btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .flash-messages {
+        margin-bottom: 16px;
+    }
+
+    .flash-message {
+        padding: 12px;
+        border-radius: 6px;
+        background: #dcfce7;
+        color: #166534;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    .flash-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    /* Add new styles for import section */
+    .import-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+        margin-top: 24px;
+    }
+
+    .import-header {
+        margin-bottom: 16px;
+    }
+
+    .import-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .import-subtitle {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .file-input-wrapper {
+        margin-bottom: 16px;
+    }
+
+    .file-input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    /* Update existing styles */
+    .input-group {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .input-group .form-control {
+        flex: 1;
+        padding-right: 50px;
+    }
+
+    .input-suffix {
+        position: absolute;
+        right: 12px;
+        color: #64748b;
+        font-size: 14px;
+        padding: 0 12px;
+        background: #f8fafc;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        border-left: 1px solid #e2e8f0;
+    }
+
+    .form-help {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+
+    /* Add spacing between sections */
+    .settings-card + .settings-card {
+        margin-top: 24px;
+    }
+
+    /* Add this to your existing styles */
+    .import-log {
+        font-family: monospace;
+        white-space: pre-wrap;
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        max-height: 400px;
+        overflow-y: auto;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .flash-message.info {
+        background: #f8fafc;
+        color: #1e293b;
+        white-space: pre-wrap;
+        font-family: monospace;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <!-- Driver Registration Settings -->
+    <div class="settings-card">
+        <div class="settings-header">
+            <h2 class="settings-title">Driver Registration Settings</h2>
+            <p class="settings-subtitle">Control driver registration access and codes</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('admin.settings') }}">
+            <div class="form-group">
+                <label class="form-label">Driver Registration</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="driver_registration_open" 
+                               {% if settings.driver_registration_open %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span style="font-size: 14px; color: #64748b;">
+                        {{ 'Open' if settings.driver_registration_open else 'Closed' }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="driver_code">Driver Registration & Login Code</label>
+                <input type="text" class="form-control" id="driver_code" 
+                       name="driver_code" value="{{ settings.driver_code }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="far_threshold">Far Delivery Threshold</label>
+                <div class="input-group">
+                    <input type="number" 
+                           class="form-control" 
+                           id="far_threshold" 
+                           name="far_threshold" 
+                           value="{{ '%.1f'|format(settings.far_threshold * 0.621371) }}" 
+                           step="0.1" 
+                           min="0" 
+                           required>
+                    <span class="input-suffix">mi</span>
+                </div>
+                <div class="form-help">Orders beyond this distance will be marked as "far"</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Save Settings
+            </button>
+        </form>
+    </div>
+
+    <!-- Import Orders Section -->
+    <div class="import-section">
+        <div class="import-header">
+            <h2 class="import-title">Import Orders</h2>
+            <p class="import-subtitle">Upload your orders CSV file</p>
+        </div>
+
+        <form action="{{ url_for('admin.import_orders') }}" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label class="form-label" for="year">Sale Year</label>
+                <select class="form-control" id="year" name="year" required>
+                    {% for y in range(current_year-1, current_year+2) %}
+                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="file-input-wrapper">
+                <label class="form-label" for="csv_file">Select CSV File</label>
+                <input type="file" class="file-input" id="csv_file" name="file" accept=".csv" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+                <i class="lucide-upload"></i>
+                Import Orders
+            </button>
+        </form>
+    </div>
+
+    <!-- Replace the school location section with this -->
+    <div class="settings-card">
+        <div class="settings-header">
+            <h2 class="settings-title">School Location</h2>
+            <p class="settings-subtitle">Set the pickup location for all deliveries</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="school_address">School Address</label>
+            <input type="text" id="school_address" name="school_address" 
+                   value="{{ settings.school_address if settings else '' }}"
+                   class="form-control">
+        </div>
+        
+        <div id="map" style="height: 400px; margin: 20px 0; border-radius: 8px;"></div>
+        
+        <div class="form-group">
+            <label class="form-label">Coordinates</label>
+            <div style="display: flex; gap: 20px; color: #64748b; font-size: 0.9em;">
+                <div>Latitude: <span id="lat_display">{{ settings.school_latitude if settings else '' }}</span></div>
+                <div>Longitude: <span id="lng_display">{{ settings.school_longitude if settings else '' }}</span></div>
+            </div>
+        </div>
+        
+        <button onclick="updateSchoolLocation()" class="btn btn-primary">
+            Save School Location
+        </button>
+    </div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key={{ config['GOOGLE_MAPS_API_KEY'] }}&libraries=places"></script>
+<script>
+let map;
+let marker;
+let geocoder;
+
+function initMap() {
+    geocoder = new google.maps.Geocoder();
+    
+    // Initialize with current school location or default to a central position
+    const currentLat = {{ settings.school_latitude if settings and settings.school_latitude else 38.74688 }};
+    const currentLng = {{ settings.school_longitude if settings and settings.school_longitude else -77.12024 }};
+    
+    map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: currentLat, lng: currentLng },
+        zoom: 15
+    });
+    
+    // Add marker at current position
+    marker = new google.maps.Marker({
+        position: { lat: currentLat, lng: currentLng },
+        map: map,
+        draggable: true,
+        title: 'School Location'
+    });
+    
+    // Update coordinates when marker is dragged
+    marker.addListener('dragend', function() {
+        const pos = marker.getPosition();
+        document.getElementById('lat_display').textContent = pos.lat().toFixed(5);
+        document.getElementById('lng_display').textContent = pos.lng().toFixed(5);
+        
+        // Reverse geocode to get address
+        geocoder.geocode({ location: pos }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                document.getElementById('school_address').value = results[0].formatted_address;
+            }
+        });
+    });
+    
+    // Add address search functionality
+    const addressInput = document.getElementById('school_address');
+    const autocomplete = new google.maps.places.Autocomplete(addressInput);
+    
+    autocomplete.addListener('place_changed', function() {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) return;
+        
+        // Update map and marker
+        map.setCenter(place.geometry.location);
+        marker.setPosition(place.geometry.location);
+        
+        // Update displayed coordinates
+        document.getElementById('lat_display').textContent = place.geometry.location.lat().toFixed(5);
+        document.getElementById('lng_display').textContent = place.geometry.location.lng().toFixed(5);
+    });
+}
+
+function updateSchoolLocation() {
+    const pos = marker.getPosition();
+    const address = document.getElementById('school_address').value;
+    
+    fetch('/admin/update-school-location', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            address: address,
+            latitude: pos.lat(),
+            longitude: pos.lng()
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('School location updated successfully');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating school location');
+    });
+}
+
+// Initialize map when page loads
+document.addEventListener('DOMContentLoaded', initMap);
+</script>
+{% endblock %} 

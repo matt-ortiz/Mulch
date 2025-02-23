@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mulch Delivery Driver View</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f1f5f9;
+            padding-bottom: 70px;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            padding: 12px;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .total-bags {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+        }
+
+        .orders-container {
+            margin-top: 80px;
+            padding: 8px;
+        }
+
+        .order-card {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .order-card.completed {
+            opacity: 0.6;
+            background: #f8fafc;
+        }
+
+        .order-header {
+            padding: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .order-info {
+            flex: 1;
+        }
+
+        .bags-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #1e40af;
+        }
+
+        .bags-info i {
+            color: #2563eb;
+        }
+
+        .address-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        .address-info i {
+            margin-top: 2px;
+        }
+
+        .order-details {
+            display: none;
+            padding: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .order-details.active {
+            display: block;
+        }
+
+        .customer-info {
+            margin-bottom: 16px;
+            font-size: 0.875rem;
+        }
+
+        .customer-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .btn-call {
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .btn-navigate {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-complete {
+            background: #16a34a;
+            color: white;
+            width: 100%;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            padding: 12px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .nav-item.active {
+            color: #2563eb;
+        }
+
+        .nav-item i {
+            margin-bottom: 4px;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="total-bags">
+                <i class="lucide-package"></i>
+                <span>Total Load: <span id="totalBags">40</span> bags</span>
+            </div>
+            <div class="completion-status">
+                <span id="completionText">0/3 Complete</span>
+            </div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%"></div>
+        </div>
+    </header>
+
+    <div class="orders-container" id="ordersContainer">
+        <!-- Orders will be inserted here by JavaScript -->
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active">
+            <i class="lucide-clipboard-list"></i>
+            <span>Orders</span>
+        </a>
+        <a href="#" class="nav-item">
+            <i class="lucide-map-pin"></i>
+            <span>Map</span>
+        </a>
+    </nav>
+
+    <script>
+        // Sample order data
+        const orders = [
+            {
+                id: 1,
+                bags: 12,
+                type: "Natural Shredded Hardwood",
+                address: "123 Oak Street, Springfield, VA",
+                customer: "John Smith",
+                phone: "555-0123",
+                notes: "Please place behind garage"
+            },
+            {
+                id: 2,
+                bags: 20,
+                type: "Natural Shredded Hardwood",
+                address: "456 Maple Ave, Springfield, VA",
+                customer: "Sarah Johnson",
+                phone: "555-0124",
+                notes: "Front door delivery"
+            },
+            {
+                id: 3,
+                bags: 8,
+                type: "Natural Shredded Hardwood",
+                address: "789 Pine Lane, Springfield, VA",
+                customer: "Mike Wilson",
+                phone: "555-0125",
+                notes: "Ring doorbell"
+            }
+        ];
+
+        const completedOrders = new Set();
+
+        function createOrderCard(order) {
+            return `
+                <div class="order-card" data-id="${order.id}">
+                    <div class="order-header" onclick="toggleOrderDetails(${order.id})">
+                        <div class="order-info">
+                            <div class="bags-info">
+                                <i class="lucide-package"></i>
+                                <span>${order.bags} bags - ${order.type}</span>
+                            </div>
+                            <div class="address-info">
+                                <i class="lucide-map-pin"></i>
+                                <span>${order.address}</span>
+                            </div>
+                        </div>
+                        <i class="lucide-chevron-down"></i>
+                    </div>
+                    <div class="order-details" id="details-${order.id}">
+                        <div class="customer-info">
+                            <div class="customer-name">Customer: ${order.customer}</div>
+                            <div class="notes">${order.notes}</div>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-call" onclick="callCustomer('${order.phone}')">
+                                <i class="lucide-phone"></i>
+                                <span>Call</span>
+                            </button>
+                            <button class="btn btn-navigate" onclick="navigate('${order.address}')">
+                                <i class="lucide-navigation-2"></i>
+                                <span>Navigate</span>
+                            </button>
+                        </div>
+                        ${!completedOrders.has(order.id) ? `
+                            <button class="btn btn-complete" onclick="markComplete(${order.id})">
+                                <i class="lucide-check"></i>
+                                <span>Mark Complete</span>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleOrderDetails(orderId) {
+            const details = document.getElementById(`details-${orderId}`);
+            details.classList.toggle('active');
+
+            const card = document.querySelector(`[data-id="${orderId}"]`);
+            const chevron = card.querySelector('.lucide-chevron-down');
+            chevron.style.transform = details.classList.contains('active') ? 'rotate(180deg)' : '';
+        }
+
+        function callCustomer(phone) {
+            window.open(`tel:${phone}`);
+        }
+
+        function navigate(address) {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+        }
+
+        function markComplete(orderId) {
+            completedOrders.add(orderId);
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update progress
+            const progress = (completedOrders.size / orders.length) * 100;
+            document.querySelector('.progress-fill').style.width = `${progress}%`;
+
+            // Update completion text
+            document.getElementById('completionText').textContent =
+                `${completedOrders.size}/${orders.length} Complete`;
+
+            // Re-render orders
+            const container = document.getElementById('ordersContainer');
+            container.innerHTML = orders.map(order => createOrderCard(order)).join('');
+
+            // Add completed class to completed orders
+            completedOrders.forEach(id => {
+                const card = document.querySelector(`[data-id="${id}"]`);
+                if (card) card.classList.add('completed');
+            });
+        }
+
+        // Initial render
+        updateUI();
+    </script>
+</body>
+
+</html>

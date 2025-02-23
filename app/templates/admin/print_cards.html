@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* Common Styles */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0 auto;
+            max-width: 1200px;
+        }
+
+        .print-button {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        @media print {
+            .print-button {
+                display: none;
+            }
+            
+            body {
+                padding: 0;
+            }
+
+            .card {
+                page-break-inside: avoid;
+                margin-bottom: 20px;
+            }
+
+            .cards-container {
+                gap: 15px;
+            }
+
+            @page {
+                margin: 0.5cm;
+                size: letter;
+            }
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            align-items: start;
+        }
+
+        .card {
+            border: 2px solid #000;
+            page-break-inside: avoid;
+            background: white;
+            width: 450px;
+            height: 370px;  /* Reduced from 420px */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .qr-code {
+            width: 80px;
+            height: 80px;
+        }
+
+        .qr-label {
+            font-size: 0.7em;
+            text-align: center;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .checkbox, .delivery-status, .date-time {
+            display: none;
+        }
+
+        .header {
+            background: #fffdf0;
+            padding: 15px;
+            border-bottom: 1px solid #e6e3d8;
+            flex: 0 0 auto;  /* Don't grow or shrink */
+        }
+
+        .customer-name {
+            font-size: 1.3em;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .order-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .order-qty {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .mulch-type {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 15px;
+            flex: 1 0 auto;  /* Grow but don't shrink */
+        }
+
+        .contact-row {
+            display: flex;
+            gap: 20px;
+        }
+
+        .info-section {
+            flex: 1;
+        }
+
+        .field {
+            margin-bottom: 15px;
+        }
+
+        .field:last-child {
+            margin-bottom: 0;
+        }
+
+        .label {
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #666;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-size: 1.1em;
+            line-height: 1.4;
+        }
+
+        .qr-section {
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .instructions-field {
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        /* Set fixed heights for address and instructions */
+        .address-value, .instructions-value {
+            min-height: 2.8em;  /* Height for 2 lines */
+            max-height: 2.8em;  /* Force 2 lines max */
+            overflow: hidden;
+            line-height: 1.4em;
+            position: relative;
+        }
+
+        /* Add ellipsis for overflow text */
+        .address-value::after, .instructions-value::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 25%;
+            height: 1.4em;
+            background: linear-gradient(to right, transparent, white);
+        }
+
+        .mulch-section {
+            margin-bottom: 40px;
+        }
+
+        .mulch-header {
+            color: #333;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ccc;
+        }
+
+        .summary-stats {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .summary-stats h2 {
+            margin: 0 0 15px 0;
+            color: #1e293b;
+            font-size: 1.5em;
+        }
+
+        .mulch-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .mulch-stat {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .mulch-stat h3 {
+            margin: 0 0 10px 0;
+            color: #334155;
+            font-size: 1.1em;
+        }
+
+        .mulch-stat p {
+            margin: 0;
+            color: #64748b;
+            font-size: 1.1em;
+        }
+
+        .stat-number {
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        @media print {
+            .mulch-section {
+                page-break-before: always;
+            }
+            
+            .mulch-header {
+                page-break-after: avoid;
+            }
+            
+            .card {
+                page-break-inside: avoid;
+            }
+        }
+
+        .cluster-section {
+            margin-bottom: 30px;
+        }
+
+        .cluster-header {
+            color: #4b5563;
+            padding: 8px 12px;
+            margin-bottom: 15px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            font-size: 1.1em;
+        }
+
+        .unmatched-section {
+            background: #fff0f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button onclick="window.print()" class="print-button">Print Cards</button>
+        <a href="{{ url_for('admin.export_delivery_data') }}" class="print-button" style="text-decoration: none;">
+            Download CSV
+        </a>
+    </div>
+
+    <!-- Add summary stats -->
+    <div class="summary-stats print-button">
+        <h2>Delivery Summary</h2>
+        <div class="mulch-summary">
+            {% for mulch_type, data in stats.mulch_counts.items() %}
+            <div class="mulch-stat">
+                <h3>{{ mulch_type }}</h3>
+                <p>
+                    <span class="stat-number">{{ data.count }}</span> orders | 
+                    <span class="stat-number">{{ data.bags }}</span> bags
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Group cards by mulch type and clusters -->
+    {% for mulch_type, clusters in clustered_orders.items() %}
+    <div class="mulch-section">
+        <h2 class="mulch-header print-button">{{ mulch_type }} - {{ stats.mulch_counts[mulch_type].count }} orders</h2>
+        
+        {% for cluster in clusters %}
+        <div class="cluster-section">
+            <h3 class="cluster-header print-button">
+                Route Group {{ loop.index }} - {{ cluster|length }} orders
+                ({{ "%.1f"|format(cluster[0].distance_from_school) }} miles from school)
+            </h3>
+            <div class="cards-container">
+                {% for order in cluster %}
+                <div class="card">
+                    <div class="header">
+                        <div class="customer-name">{{ order.customer_name }}</div>
+                        <div class="order-header">
+                            <div class="order-qty">{{ order.bags_ordered }} BAGS</div>
+                            <div class="mulch-type">{{ order.mulch_type }}</div>
+                        </div>
+                    </div>
+
+                    <div class="main-content">
+                        <div class="contact-row">
+                            <div class="info-section">
+                                <div class="field">
+                                    <div class="label">Location</div>
+                                    <div class="value address-value">
+                                        {{ order.address }}
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <div class="label">Contact</div>
+                                    <div class="value">
+                                        {{ order.phone[:3] }}-{{ order.phone[3:6] }}-{{ order.phone[6:] }}<br>
+                                        <span style="font-size: 0.9em; color: #666;">
+                                            Prefers {{ order.preferred_contact|title }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="qr-section">
+                                <div id="qr{{ order.id }}" class="qr-code"></div>
+                                <div class="qr-label">Scan for Maps</div>
+                            </div>
+                        </div>
+
+                        <div class="instructions-field">
+                            <div class="label">Instructions</div>
+                            <div class="value instructions-value">{{ order.notes }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <!-- Show orders with no coordinates at the end -->
+    {% if orders_no_coords %}
+    <div class="mulch-section unmatched-section">
+        <h2 class="mulch-header print-button">Orders Needing Address Verification</h2>
+        {% for mulch_type, orders in orders_no_coords.items() %}
+        <div class="cluster-section">
+            <h3 class="cluster-header print-button">{{ mulch_type }} - {{ orders|length }} orders</h3>
+            <div class="cards-container">
+                {% for order in orders %}
+                <div class="card">
+                    <div class="header">
+                        <div class="customer-name">{{ order.customer_name }}</div>
+                        <div class="order-header">
+                            <div class="order-qty">{{ order.bags_ordered }} BAGS</div>
+                            <div class="mulch-type">{{ order.mulch_type }}</div>
+                        </div>
+                    </div>
+
+                    <div class="main-content">
+                        <div class="contact-row">
+                            <div class="info-section">
+                                <div class="field">
+                                    <div class="label">Location</div>
+                                    <div class="value address-value">
+                                        {{ order.address }}
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <div class="label">Contact</div>
+                                    <div class="value">
+                                        {{ order.phone[:3] }}-{{ order.phone[3:6] }}-{{ order.phone[6:] }}<br>
+                                        <span style="font-size: 0.9em; color: #666;">
+                                            Prefers {{ order.preferred_contact|title }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="qr-section">
+                                <div id="qr{{ order.id }}" class="qr-code"></div>
+                                <div class="qr-label">Scan for Maps</div>
+                            </div>
+                        </div>
+
+                        <div class="instructions-field">
+                            <div class="label">Instructions</div>
+                            <div class="value instructions-value">{{ order.notes }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <script>
+        // Function to create a Google Maps URL
+        function createMapUrl(address) {
+            return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+        }
+
+        // Create QR codes for each card using order.id as unique identifier
+        {% for mulch_type, clusters in clustered_orders.items() %}
+            {% for cluster in clusters %}
+                {% for order in cluster %}
+                    new QRCode(document.getElementById('qr{{ order.id }}'), {
+                        text: createMapUrl('{{ order.address|replace("'", "\\'") }}'),
+                        width: 80,
+                        height: 80,
+                        correctLevel: QRCode.CorrectLevel.L
+                    });
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}
+    </script>
+</body>
+
+</html>

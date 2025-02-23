@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mulch Delivery Admin</title>
+    <!-- Add Lucide JS -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Add cache-busting meta tags -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        :root {
+            --sidebar-width: 240px;
+        }
+
+        body {
+            background-color: #f8fafc;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Styles - Only for admin */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            z-index: 1090;
+        }
+
+        .sidebar-header {
+            padding-bottom: 20px;
+            border-bottom: 1px solid #334155;
+            margin-bottom: 20px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            color: #94a3b8;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+        }
+
+        .menu-item:hover {
+            background: #334155;
+            color: white;
+        }
+
+        .menu-item.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        .menu-item svg {
+            margin-right: 5px;
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            flex: 1;
+            width: 100%;
+            min-height: 100vh;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .menu-section {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 16px 12px 8px 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .menu-indent {
+            padding-left: 12px;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid #334155;
+        }
+
+        .logout-button {
+            color: #ef4444 !important;
+        }
+
+        .logout-button:hover {
+            background: rgba(239, 68, 68, 0.1) !important;
+        }
+
+        /* Add responsive breakpoints */
+        @media (min-width: 769px) {
+            .main-content {
+                margin-left: var(--sidebar-width);
+                width: calc(100% - var(--sidebar-width));
+            }
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --sidebar-width: 60px;
+                --sidebar-expanded-width: 240px;
+            }
+
+            /* Adjust sidebar */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: var(--sidebar-expanded-width);
+                z-index: 9999;
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                background: #1e293b;
+                overflow-x: hidden;
+                overflow-y: auto;
+                padding: 16px;
+            }
+
+            .sidebar.visible {
+                transform: translateX(0);
+            }
+
+            /* Update toggle button */
+            .sidebar-toggle {
+                position: absolute;
+                top: 16px;
+                left: 16px;
+                z-index: 10000;
+                background: #2563eb;
+                color: white;
+                width: 44px;
+                height: 44px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                border: none;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            .sidebar-toggle:hover {
+                background: #1d4ed8;
+            }
+
+            .sidebar-toggle:active {
+                transform: scale(0.95);
+            }
+
+            /* Adjust main content */
+            .main-content {
+                margin-left: 0;
+                padding-top: 76px;
+                width: 100%;
+                position: relative;
+            }
+
+            .main-content.sidebar-visible {
+                margin-left: var(--sidebar-expanded-width);
+                width: calc(100% - var(--sidebar-expanded-width));
+            }
+
+            /* Prevent content scrolling when sidebar is open */
+            body.sidebar-open {
+                overflow: hidden;
+            }
+
+            /* Force Leaflet controls below our elements */
+            .leaflet-top,
+            .leaflet-bottom {
+                z-index: 900 !important;
+            }
+
+            /* Force Leaflet popups below our elements */
+            .leaflet-popup {
+                z-index: 900 !important;
+            }
+
+            /* Force Leaflet controls container below our elements */
+            .leaflet-control-container {
+                z-index: 900 !important;
+            }
+
+            /* Add overlay */
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 9998;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .sidebar-overlay.visible {
+                display: block;
+                opacity: 1;
+            }
+
+            /* Create a header container for the toggle */
+            .mobile-header {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 76px;
+                background: #f8fafc;
+                z-index: 9997;
+                padding: 16px;
+            }
+        }
+
+        /* Add this to ensure map container stays below our elements */
+        #map {
+            z-index: 1 !important;
+        }
+
+        .map-container {
+            z-index: 1 !important;
+        }
+
+        /* Hide mobile elements by default */
+        .mobile-nav-toggle {
+            display: none;
+        }
+    </style>
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="mobile-header">
+        <button class="sidebar-toggle" aria-label="Toggle navigation">
+            <i data-lucide="menu"></i>
+        </button>
+    </div>
+
+    <div class="sidebar-overlay"></div>
+    
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>Mulch Delivery</h2>
+        </div>
+        
+        <ul class="sidebar-menu">
+            <li><a href="{{ url_for('admin.dashboard') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.dashboard' }}">
+                <i data-lucide="layout-dashboard"></i> 
+                <span>Dashboard</span>
+            </a></li>
+            
+            <li><a href="{{ url_for('admin.view_map') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.view_map' }}">
+                <i data-lucide="map"></i>
+                <span>Order Map</span>
+            </a></li>
+            
+            <li><a href="{{ url_for('admin.build_load') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.build_load' }}">
+                <i data-lucide="plus-circle"></i>
+                <span>Build Load</span>
+            </a></li>
+
+            <li><a href="{{ url_for('admin.manage_drivers') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.manage_drivers' }}">
+                <i data-lucide="users"></i> 
+                <span>Manage Drivers</span>
+            </a></li>
+            
+            <li><a href="{{ url_for('admin.manage_addresses') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.manage_addresses' }}">
+                <i data-lucide="map-pin"></i>
+                <span>Addresses</span>
+            </a></li>
+            
+            <li class="menu-section">Experimental</li>
+            
+            <li class="menu-indent"><a href="{{ url_for('admin.load_generator') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.load_generator' }}">
+                <i data-lucide="truck"></i>
+                <span>AI Load Builder</span>
+            </a></li>
+            
+            <li class="menu-indent"><a href="{{ url_for('admin.ai_routes') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.ai_routes' }}">
+                <i data-lucide="route"></i>
+                <span>Pre-Loads</span>
+            </a></li>
+            
+            <li class="menu-section">Admin</li>
+            
+            
+            
+            <li class="menu-indent"><a href="{{ url_for('admin.settings') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.settings' }}">
+                <i data-lucide="settings"></i>
+                <span>Settings</span>
+            </a></li>
+            
+            <li class="menu-indent"><a href="{{ url_for('admin.import_issues') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.import_issues' }}">
+                <i data-lucide="alert-triangle"></i>
+                <span>Import Issues</span>
+            </a></li>
+
+            <li class="menu-section">Delivery Planning</li>
+
+            <li class="menu-indent"><a href="{{ url_for('admin.print_cards') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.print_cards' }}">
+                <i data-lucide="file-text"></i>
+                <span>Delivery Cards</span>
+            </a></li>
+
+            <li class="menu-indent"><a href="{{ url_for('admin.view_routes') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.view_routes' }}">
+                <i data-lucide="map-pin"></i>
+                <span>Route Map</span>
+            </a></li>
+        </ul>
+        
+        <div class="sidebar-footer">
+            <a href="{{ url_for('auth.logout') }}" class="menu-item logout-button">
+                <i data-lucide="log-out"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Improved sidebar toggle
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
+            const toggleBtn = document.querySelector('.sidebar-toggle');
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            // Toggle sidebar
+            function toggleSidebar() {
+                sidebar.classList.toggle('visible');
+                overlay.classList.toggle('visible');
+                document.body.classList.toggle('sidebar-open');
+                
+                // Update toggle button icon
+                const icon = toggleBtn.querySelector('i');
+                if (sidebar.classList.contains('visible')) {
+                    icon.setAttribute('data-lucide', 'x');
+                } else {
+                    icon.setAttribute('data-lucide', 'menu');
+                }
+                lucide.createIcons();
+            }
+
+            // Add click listeners
+            toggleBtn.addEventListener('click', toggleSidebar);
+            overlay.addEventListener('click', toggleSidebar);
+
+            // Add swipe gestures
+            document.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+            });
+
+            document.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].clientX;
+                handleSwipe();
+            });
+
+            function handleSwipe() {
+                const swipeDistance = touchEndX - touchStartX;
+                const threshold = 50; // Minimum swipe distance
+
+                if (Math.abs(swipeDistance) < threshold) return;
+
+                if (swipeDistance > 0 && !sidebar.classList.contains('visible')) {
+                    // Swipe right, open sidebar
+                    toggleSidebar();
+                } else if (swipeDistance < 0 && sidebar.classList.contains('visible')) {
+                    // Swipe left, close sidebar
+                    toggleSidebar();
+                }
+            }
+
+            // Handle escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && sidebar.classList.contains('visible')) {
+                    toggleSidebar();
+                }
+            });
+
+            // Prevent scrolling when sidebar is open
+            sidebar.addEventListener('touchmove', (e) => {
+                e.stopPropagation();
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,902 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    .page-grid {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 24px;
+        height: calc(100vh - 48px);
+        padding: 24px;
+    }
+
+    .delivery-panel {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: calc(100vh - 48px);  /* Ensure it fits in viewport */
+    }
+
+    .filters {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        border-radius: 8px 8px 0 0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .filter-select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .delivery-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        /* Add smooth scrolling */
+        scroll-behavior: smooth;
+    }
+
+    /* Add scrollbar styling */
+    .delivery-list::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .delivery-list::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+
+    .delivery-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .delivery-list::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    .delivery-item {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .delivery-item:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+
+    .delivery-item.active {
+        border-color: #2563eb;
+        background: #eff6ff;
+    }
+
+    .delivery-status {
+        float: right;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .mulch-info {
+        margin: 8px 0;
+    }
+
+    .mulch-dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 2px solid;  /* This will be colored by the status */
+    }
+
+    .customer-info {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .map-container {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        height: 100%;
+        max-height: calc(100vh - 48px);  /* Ensure it fits in viewport */
+        position: relative;
+    }
+
+    #map {
+        height: 100%;
+        border-radius: 8px;
+    }
+
+    .map-legend {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        z-index: 1000;
+        font-size: 14px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+    }
+
+    .visible-count {
+        font-size: 14px;
+        color: #64748b;
+        margin-top: 8px;
+        text-align: center;
+    }
+
+    /* Status colors */
+    .status-pending { background: #f1f5f9; color: #64748b; }
+    .status-assigned { background: #dbeafe; color: #1e40af; }
+    .status-in_progress { background: #fef3c7; color: #92400e; }
+    .status-delivered { background: #dcfce7; color: #166534; }
+
+    .driver-assignment {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .driver-select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        background: white;
+        cursor: pointer;
+    }
+
+    .driver-select:hover {
+        border-color: #cbd5e1;
+    }
+
+    .driver-select option {
+        padding: 8px;
+    }
+
+    /* Add to your existing styles */
+    option.has-pending {
+        color: #92400e;  /* Amber color for consistency */
+        font-style: italic;
+    }
+
+    /* Add to your existing styles */
+    .leaflet-popup-content-wrapper {
+        border-radius: 8px;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    .leaflet-popup-content {
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .leaflet-popup-tip {
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    .custom-popup .leaflet-popup-content-wrapper {
+        background: white;
+        color: #1e293b;
+        border-radius: 8px;
+    }
+
+    .custom-popup .leaflet-popup-tip {
+        background: white;
+    }
+
+    .custom-popup select:hover {
+        border-color: #cbd5e1;
+    }
+
+    .custom-popup select:focus {
+        outline: none;
+        border-color: #2563eb;
+        ring: 2px solid #bfdbfe;
+    }
+
+    /* Add responsive breakpoints */
+    @media (max-width: 768px) {
+        .page-grid {
+            grid-template-columns: 1fr;  /* Stack panels on mobile */
+            gap: 0;
+            height: 100vh;
+            padding: 0;
+            position: relative;
+        }
+
+        .delivery-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60%;  /* Take up bottom half of screen */
+            z-index: 1000;
+            border-radius: 20px 20px 0 0;
+            transform: translateY(calc(100% - 60px));  /* Show just the filter bar */
+            transition: transform 0.3s ease;
+            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .delivery-panel.expanded {
+            transform: translateY(0);
+        }
+
+        /* Add drag handle */
+        .panel-handle {
+            display: block;  /* Hidden by default, shown on mobile */
+            width: 40px;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            margin: 8px auto;
+            cursor: grab;
+        }
+
+        .filters {
+            padding: 8px 16px;
+        }
+
+        .filter-select {
+            margin-bottom: 4px;
+        }
+
+        .delivery-list {
+            max-height: calc(100% - 120px);  /* Account for filters and handle */
+        }
+
+        .map-container {
+            height: 100vh;
+            border-radius: 0;
+        }
+
+        /* Make the legend more compact */
+        .map-legend {
+            bottom: calc(60% + 8px);  /* Position above the panel */
+            right: 8px;
+            padding: 8px;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            gap: 4px;
+            margin: 2px 0;
+        }
+
+        /* Adjust delivery items for touch */
+        .delivery-item {
+            padding: 16px;
+            margin-bottom: 4px;
+        }
+
+        /* Make driver select more touch-friendly */
+        .driver-select {
+            padding: 12px;
+            margin-top: 8px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <div class="delivery-panel">
+        <div class="panel-handle"></div>
+        <div class="filters">
+            <select class="filter-select" id="filterStatus">
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="assigned">Assigned</option>
+                <option value="delivered">Delivered</option>
+            </select>
+            <select class="filter-select" id="filterMulch">
+                <option value="all">All Mulch Types</option>
+                <option value="Black Shredded Hardwood">Black</option>
+                <option value="Red Shredded Hardwood">Red</option>
+                <option value="Shredded Hardwood (Natural brown)">Natural</option>
+            </select>
+            <div class="visible-count" id="visible-count"></div>
+        </div>
+        {% if selected_driver %}
+        <div style="padding: 8px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <h3 style="font-size: 16px; color: #1e293b;">
+                Viewing {{ selected_driver.first_name }}'s Load
+                <span style="color: #64748b; font-size: 14px;">
+                    ({{ deliveries|length }} orders, 
+                    {{ deliveries|sum(attribute='order.bags_ordered') }} bags)
+                </span>
+            </h3>
+        </div>
+        {% endif %}
+        <div class="delivery-list" id="deliveryList">
+            {% for delivery in deliveries %}
+            <div class="delivery-item" 
+                 data-id="{{ delivery.id }}"
+                 data-lat="{{ delivery.order.latitude }}"
+                 data-lng="{{ delivery.order.longitude }}"
+                 data-status="{{ delivery.status }}"
+                 data-mulch="{{ delivery.order.mulch_type }}">
+                <span class="delivery-status status-{{ delivery.status }}">
+                    {{ delivery.status|title }}
+                </span>
+                <div class="mulch-info">
+                    <span class="mulch-dot" style="background-color: {{ getMulchColor(delivery.order.mulch_type) }}; 
+                                                 border-color: {{ getStatusBorder(delivery.status) }}"></span>
+                    <strong>{{ delivery.order.bags_ordered }} bags</strong>
+                    <span>{{ delivery.order.mulch_type }}</span>
+                </div>
+                <div class="customer-info">
+                    <div>{{ delivery.order.customer_name }}</div>
+                    <div>{{ delivery.order.address }}</div>
+                </div>
+                <div class="driver-assignment">
+                    <select class="driver-select" 
+                            onchange="assignDriver('{{ delivery.id }}', this.value, this)"
+                            data-original-value="{{ delivery.driver.id if delivery.driver else '' }}">
+                        <option value="">Unassigned</option>
+                        {% for driver in drivers %}
+                        <option value="{{ driver.id }}" 
+                                {% if delivery.driver and delivery.driver.id == driver.id %}selected{% endif %}
+                                data-name="{{ driver.first_name }}">
+                            {{ driver.first_name }} ({{ driver.vehicle_capacity }} bags)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="map-container">
+        <div id="map"></div>
+        <div class="map-legend">
+            <h6>Mulch Types</h6>
+            <div class="legend-item">
+                <span class="legend-dot" style="background-color: #000000"></span>
+                <span>Black</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background-color: #8B4513"></span>
+                <span>Red</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background-color: #DEB887"></span>
+                <span>Natural</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Add Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map;
+let markers = [];
+let infoWindows = [];
+
+function getMulchColor(mulchType) {
+    // Make sure mulch type comparison is exact
+    const colors = {
+        'Black Shredded Hardwood': '#000000',  // Pure black
+        'Red Shredded Hardwood': '#8B4513',    // Saddle brown
+        'Shredded Hardwood (Natural brown)': '#DEB887'  // Burlywood
+    };
+    console.log('Mulch type:', mulchType, 'Color:', colors[mulchType]); // Debug log
+    return colors[mulchType] || '#808080';
+}
+
+function getStatusBorder(status) {
+    const colors = {
+        'pending': '#6c757d',
+        'assigned': '#3b82f6',
+        'in_progress': '#f59e0b',
+        'delivered': '#10b981'
+    };
+    return colors[status] || '#6c757d';
+}
+
+function addMarker(lat, lng, customerName, address, status, id, driverName, mulchType, bags) {
+    console.log('Adding marker:', { lat, lng, customerName, status, id, mulchType });  // Debug log
+    
+    const marker = L.circleMarker([lat, lng], {
+        radius: 8,
+        fillColor: getMulchColor(mulchType),
+        color: getStatusBorder(status),
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    }).addTo(map);
+    
+    const popupContent = `
+        <div class="popup-content" style="min-width: 200px; padding: 8px;">
+            <div style="margin-bottom: 12px;">
+                <h6 style="font-size: 16px; font-weight: 600; color: #1e293b; margin: 0 0 4px 0;">
+                    ${customerName}
+                </h6>
+                <div style="font-size: 14px; color: #64748b;">
+                    ${address}
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <div style="
+                    width: 12px; 
+                    height: 12px; 
+                    border-radius: 50%; 
+                    background-color: ${getMulchColor(mulchType)};
+                    border: 2px solid ${getStatusBorder(status)};
+                    margin-top: 4px;
+                "></div>
+                <div>
+                    <div style="font-weight: 500; color: #1e293b;">
+                        ${bags} bags - ${mulchType}
+                    </div>
+                    <div style="font-size: 14px; color: #64748b;">
+                        Status: <span class="status-${status}" style="
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 12px;
+                            font-weight: 500;
+                            background: ${status === 'assigned' ? '#dbeafe' : 
+                                       status === 'delivered' ? '#dcfce7' : 
+                                       status === 'in_progress' ? '#fef3c7' : 
+                                       status === 'proposed' ? '#f3e8ff' : '#f1f5f9'};
+                            color: ${status === 'assigned' ? '#1e40af' : 
+                                   status === 'delivered' ? '#166534' : 
+                                   status === 'in_progress' ? '#92400e' : 
+                                   status === 'proposed' ? '#6b21a8' : '#64748b'};
+                        ">${status}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="font-size: 14px; color: #64748b; margin-bottom: 12px;">
+                Driver: ${driverName}
+            </div>
+        </div>
+    `;
+    
+    // Create custom popup options
+    const popupOptions = {
+        maxWidth: 300,
+        className: 'custom-popup'
+    };
+    
+    marker.bindPopup(popupContent, popupOptions);
+    
+    marker.on('click', () => {
+        highlightDeliveryItem(id);
+    });
+    
+    // Store the marker with all necessary information
+    markers.push({ 
+        id: id, 
+        marker: marker, 
+        status: status,
+        mulchType: mulchType,
+        isPreview: id.toString().startsWith('temp_')
+    });
+}
+
+function assignDriver(orderId, driverId, selectElement) {
+    // Store original value in case of error
+    const originalValue = selectElement.dataset.originalValue;
+    
+    // Show loading state
+    selectElement.disabled = true;
+    selectElement.style.opacity = '0.5';
+    
+    const url = driverId ? '/admin/assign-order' : '/admin/unassign-order';
+    const data = driverId ? 
+        { order_id: orderId, driver_id: driverId } : 
+        { order_id: orderId };
+    
+    console.log('Sending request:', { url, data }); // Debug log
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Update the original value
+            selectElement.dataset.originalValue = driverId;
+            
+            // Update delivery item status and classes
+            const deliveryItem = selectElement.closest('.delivery-item');
+            if (deliveryItem) {
+                const statusBadge = deliveryItem.querySelector('.delivery-status');
+                const mulchDot = deliveryItem.querySelector('.mulch-dot');
+                
+                if (driverId) {
+                    // Update to assigned state
+                    statusBadge.textContent = 'Assigned';
+                    statusBadge.className = 'delivery-status status-assigned';
+                    deliveryItem.dataset.status = 'assigned';
+                    mulchDot.style.borderColor = getStatusBorder('assigned');
+                } else {
+                    // Update to pending state
+                    statusBadge.textContent = 'Pending';
+                    statusBadge.className = 'delivery-status status-pending';
+                    deliveryItem.dataset.status = 'pending';
+                    mulchDot.style.borderColor = getStatusBorder('pending');
+                }
+            }
+            
+            // Update map marker
+            const marker = markers.find(m => m.id === orderId);
+            if (marker) {
+                // Update marker style
+                marker.status = driverId ? 'assigned' : 'pending';
+                marker.marker.setStyle({
+                    color: getStatusBorder(marker.status)
+                });
+                
+                // Update popup content
+                const driverName = driverId ? 
+                    selectElement.options[selectElement.selectedIndex].text : 
+                    'Unassigned';
+                
+                const popupContent = `
+                    <div class="popup-content">
+                        <h6>${deliveryItem.querySelector('.customer-info div').textContent}</h6>
+                        <p>${deliveryItem.querySelector('.customer-info div:last-child').textContent}</p>
+                        <p>Mulch: ${marker.mulchType}</p>
+                        <p>Bags: ${deliveryItem.querySelector('strong').textContent.split(' ')[0]}</p>
+                        <p>Status: ${marker.status}</p>
+                        <p>Driver: ${driverName}</p>
+                    </div>
+                `;
+                marker.marker.setPopupContent(popupContent);
+            }
+            
+            // Re-apply filters to update visibility
+            filterDeliveries();
+            
+        } else {
+            // Revert to original value on error
+            selectElement.value = originalValue;
+            console.error('Server returned error:', data.error);
+            alert(data.error || 'Failed to update driver assignment');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Revert to original value on error
+        selectElement.value = originalValue;
+        alert('Failed to update driver assignment: ' + error.message);
+    })
+    .finally(() => {
+        // Remove loading state
+        selectElement.disabled = false;
+        selectElement.style.opacity = '1';
+    });
+}
+
+function initMap() {
+    const center = [38.7392, -77.1026];
+    
+    map = L.map('map').setView(center, 12);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    {% for delivery in deliveries %}
+    addMarker(
+        {{ delivery.order.latitude }},
+        {{ delivery.order.longitude }},
+        "{{ delivery.order.customer_name }}",
+        "{{ delivery.order.address }}",
+        "{{ delivery.status }}",
+        "{{ delivery.id }}",
+        "{{ delivery.driver.first_name if delivery.driver else 'Unassigned' }}",
+        "{{ delivery.order.mulch_type }}",
+        {{ delivery.order.bags_ordered }}
+    );
+    {% endfor %}
+    
+    if (markers.length > 0) {
+        const group = new L.featureGroup(markers.map(m => m.marker));
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+    
+    // Add event listeners for map movement
+    map.on('moveend', updateVisibleDeliveries);
+    map.on('zoomend', updateVisibleDeliveries);
+    
+    // Add event listeners for filters
+    document.getElementById('filterStatus').addEventListener('change', filterDeliveries);
+    document.getElementById('filterMulch').addEventListener('change', filterDeliveries);
+    
+    // Initial update
+    updateVisibleDeliveries();
+}
+
+function highlightDeliveryItem(id) {
+    document.querySelectorAll('.delivery-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`.delivery-item[data-id="${id}"]`).classList.add('active');
+}
+
+function filterDeliveries(firstRun = false) {
+    console.log("Starting filterDeliveries...");
+    console.log("Current URL:", window.location.pathname);
+    
+    // Main view - handle all statuses with filters
+    const statusFilter = document.getElementById('filterStatus').value;
+    const mulchFilter = document.getElementById('filterMulch').value;
+    
+    console.log("Filters:", { statusFilter, mulchFilter });
+    
+    document.querySelectorAll('.delivery-item').forEach(item => {
+        const itemStatus = item.dataset.status;
+        const itemMulch = item.dataset.mulch;
+        
+        console.log("Processing item:", {
+            id: item.dataset.id,
+            status: itemStatus,
+            mulch: itemMulch
+        });
+        
+        // Check if item matches filters
+        const matchesStatus = statusFilter === 'all' || itemStatus === statusFilter;
+        const matchesMulch = mulchFilter === 'all' || itemMulch === mulchFilter;
+        const isVisible = matchesStatus && matchesMulch;
+        
+        console.log("Filter matches:", {
+            matchesStatus,
+            matchesMulch,
+            isVisible
+        });
+
+        // Update list item visibility
+        item.style.display = isVisible ? 'block' : 'none';
+
+        // Update marker visibility
+        const marker = markers.find(m => m.id === item.dataset.id);
+        if (marker) {
+            marker.marker.setStyle({
+                opacity: isVisible ? 1 : 0.2,
+                fillOpacity: isVisible ? 0.8 : 0.2
+            });
+        }
+    });
+
+    // Update visible count
+    updateVisibleDeliveries();
+    
+    console.log("FilterDeliveries complete");
+}
+
+function updateVisibleDeliveries() {
+    if (!map || markers.length === 0) {
+        console.log("Skipping update, map or markers not ready yet.");
+        return;
+    }
+
+    const bounds = map.getBounds();
+    let visibleCount = 0;
+    let totalBags = 0;
+
+    // Get current filter values
+    const statusFilter = document.getElementById('filterStatus').value;
+    const mulchFilter = document.getElementById('filterMulch').value;
+
+    document.querySelectorAll('.delivery-item').forEach(item => {
+        const lat = parseFloat(item.dataset.lat);
+        const lng = parseFloat(item.dataset.lng);
+        const itemStatus = item.dataset.status;
+        const itemMulch = item.dataset.mulch;
+        
+        // Check if point is within current map bounds
+        const isInView = bounds.contains([lat, lng]);
+        
+        // Check if item matches filters
+        const matchesStatus = statusFilter === 'all' || itemStatus === statusFilter;
+        const matchesMulch = mulchFilter === 'all' || itemMulch === mulchFilter;
+        
+        // Item should be visible if it's in view AND matches filters
+        const isVisible = isInView && matchesStatus && matchesMulch;
+
+        // Update item visibility
+        item.style.display = isVisible ? 'block' : 'none';
+
+        // Update counts if visible
+        if (isVisible) {
+            visibleCount++;
+            const bags = parseInt(item.querySelector('strong').textContent);
+            totalBags += isNaN(bags) ? 0 : bags;
+        }
+    });
+
+    // Update the count display
+    document.getElementById('visible-count').textContent = 
+        `Showing ${visibleCount} orders (${totalBags} bags)`;
+}
+
+// Click handler for delivery items
+document.querySelectorAll('.delivery-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+        e.preventDefault();  // Prevent default action
+        const lat = parseFloat(this.dataset.lat);
+        const lng = parseFloat(this.dataset.lng);
+        const id = this.dataset.id;
+        
+        // Remove active class from all items
+        document.querySelectorAll('.delivery-item').forEach(i => i.classList.remove('active'));
+        
+        // Add active class to clicked item
+        this.classList.add('active');
+        
+        map.setView([lat, lng], 15);
+        
+        const marker = markers.find(m => m.id === id);
+        if (marker) {
+            marker.marker.openPopup();
+        }
+    });
+});
+
+// Initialize filters and map when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded, initializing filters...');
+    
+    const statusFilter = document.getElementById('filterStatus');
+    const mulchFilter = document.getElementById('filterMulch');
+    
+    console.log('Initial filter values:', {
+        status: statusFilter.value,
+        mulch: mulchFilter.value
+    });
+    
+    // Add filter change listeners
+    statusFilter.addEventListener('change', filterDeliveries);
+    mulchFilter.addEventListener('change', filterDeliveries);
+    
+    // Delay initial filtering to ensure all items are visible at first
+    setTimeout(filterDeliveries, 500);
+    startDriverUpdates();
+});
+
+// Initialize map when page loads
+window.onload = initMap;
+
+// Add this polling function
+function startDriverUpdates() {
+    function pollDriverStatus() {
+        fetch('/admin/driver-updates')
+            .then(response => response.json())
+            .then(updates => {
+                updates.forEach(update => {
+                    document.querySelectorAll(`option[value="${update.id}"]`).forEach(option => {
+                        if (option) {
+                            const driverName = option.dataset.name;
+                            if (update.is_busy) {
+                                option.classList.add('has-pending');
+                                option.textContent = `${driverName} (Has Pending Deliveries)`;
+                            } else {
+                                option.classList.remove('has-pending');
+                                option.textContent = option.dataset.name + ' (' + option.parentElement.querySelector(`option[value="${update.id}"]`).textContent.split('(')[1];
+                            }
+                        }
+                    });
+                });
+            })
+            .catch(error => console.error('Error polling driver status:', error));
+    }
+
+    // Poll every 5 seconds
+    pollDriverStatus(); // Initial call
+    setInterval(pollDriverStatus, 5000);
+}
+
+// Add after your existing scripts
+document.addEventListener('DOMContentLoaded', function() {
+    // Only run on mobile
+    if (window.innerWidth <= 768) {
+        const panel = document.querySelector('.delivery-panel');
+        const handle = document.querySelector('.panel-handle');
+        let startY;
+        let startTransform;
+        let isDragging = false;
+
+        handle.addEventListener('touchstart', function(e) {
+            isDragging = true;
+            startY = e.touches[0].clientY;
+            startTransform = panel.getBoundingClientRect().top;
+            panel.style.transition = 'none';
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            
+            const deltaY = e.touches[0].clientY - startY;
+            const newTop = Math.min(Math.max(0, startTransform + deltaY), 
+                                 window.innerHeight - 60);
+            
+            panel.style.transform = `translateY(${newTop}px)`;
+        });
+
+        document.addEventListener('touchend', function() {
+            if (!isDragging) return;
+            isDragging = false;
+            panel.style.transition = 'transform 0.3s ease';
+            
+            const currentPosition = panel.getBoundingClientRect().top;
+            const threshold = window.innerHeight * 0.3;
+            
+            if (currentPosition > threshold) {
+                // Collapse
+                panel.classList.remove('expanded');
+                panel.style.transform = 'translateY(calc(100% - 60px))';
+            } else {
+                // Expand
+                panel.classList.add('expanded');
+                panel.style.transform = 'translateY(0)';
+            }
+        });
+
+        // Toggle panel on handle click
+        handle.addEventListener('click', function() {
+            panel.classList.toggle('expanded');
+        });
+
+        // Close panel when clicking map (if panel is expanded)
+        document.querySelector('.map-container').addEventListener('click', function() {
+            if (panel.classList.contains('expanded')) {
+                panel.classList.remove('expanded');
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

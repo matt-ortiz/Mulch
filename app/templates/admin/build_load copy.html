@@ -1,0 +1,936 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    /* Main layout container */
+    .page-container {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 24px;
+        padding: 24px;
+        height: 100vh; /* Simplified height */
+    }
+
+    /* Left sidebar */
+    .load-builder-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        height: 100%;
+        overflow: hidden; /* Prevent sidebar scroll */
+    }
+
+    /* Load summary section - fixed height with scroll */
+    .load-summary {
+        background: white;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        max-height: 308px; /* Keep 2 loads in view */
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Add custom scrollbar for load summary */
+    .load-summary::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .load-summary::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .load-summary::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .load-summary::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    /* Drivers panel - takes remaining height */
+    .drivers-panel {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0; /* Allow flex shrinking */
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 16px;
+    }
+
+    /* Drivers list - scrollable */
+    .drivers-list {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+        margin-bottom: 16px; /* Space for assign button */
+    }
+
+    /* Map container */
+    .map-container {
+        height: 100%;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    /* Map takes full height */
+    #map {
+        width: 100%;
+        height: 100%;
+        min-height: 400px;
+    }
+
+    /* Keep assign button at bottom */
+    .assign-btn {
+        position: sticky;
+        bottom: 0;
+        margin-top: auto;
+        padding: 14px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .assign-btn:hover:not(:disabled) {
+        background: #1d4ed8;
+    }
+
+    .assign-btn:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    /* Add responsive behavior */
+    @media (max-height: 700px) {
+        .page-container {
+            min-height: 700px; /* Force minimum height */
+            height: auto;
+            overflow: auto;
+        }
+    }
+
+    @media (max-width: 1024px) {
+        .page-container {
+            grid-template-columns: 300px 1fr;
+        }
+    }
+
+    .load-panel {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        height: 100%;
+    }
+
+    .load-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        padding: 16px;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .load-summary h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 12px;
+    }
+
+    #loadStats {
+        display: flex;
+        gap: 16px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 6px;
+        margin-bottom: 16px;
+    }
+
+    .stat-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .stat-group i {
+        color: #64748b;
+    }
+
+    .stat-value {
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+    .selected-orders {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+
+    .selected-order-item {
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+
+    .selected-order-item:hover {
+        background: #f1f5f9;
+        cursor: pointer;
+    }
+
+    .order-details {
+        flex: 1;
+    }
+
+    .order-name {
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .order-bags {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .remove-order {
+        padding: 8px;
+        border-radius: 8px;
+        color: #dc2626;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .remove-order:hover {
+        background: #fee2e2;
+    }
+
+    .remove-order i {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Add custom scrollbar */
+    .selected-orders::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .selected-orders::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .selected-orders::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .selected-orders::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    .driver-card {
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .driver-card:hover {
+        border-color: #2563eb;
+        background: #f8fafc;
+    }
+
+    .driver-card.selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+    }
+
+    /* Style for drivers with pending deliveries - similar to unavailable but with amber color */
+    .driver-card.has-pending {
+        opacity: 0.7;
+        background: #f1f5f9;
+        cursor: not-allowed;
+        border-color: #f59e0b;  /* Amber border */
+    }
+
+    .driver-card.has-pending:hover {
+        opacity: 0.7;
+        background: #f1f5f9;
+        border-color: #f59e0b;
+    }
+
+    .driver-card.has-pending .driver-name {
+        color: #92400e;  /* Darker amber for name */
+    }
+
+    .driver-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .driver-name {
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+    .driver-capacity {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .capacity-meter {
+        background: #f1f5f9;
+        height: 6px;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+
+    .capacity-fill {
+        height: 100%;
+        background: #2563eb;
+        transition: width 0.3s ease;
+    }
+
+    .capacity-fill.warning {
+        background: #f59e0b;
+    }
+
+    .capacity-fill.danger {
+        background: #ef4444;
+    }
+
+    .capacity-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 4px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .capacity-diff {
+        color: #64748b;
+    }
+
+    .capacity-diff.over {
+        color: #ef4444;  /* Red for over capacity */
+    }
+
+    .capacity-diff.under {
+        color: #22c55e;  /* Green for under capacity */
+    }
+
+    .driver-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #64748b;
+        margin-top: 8px;
+    }
+
+    .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .status-available {
+        background: #22c55e;
+    }
+
+    .status-busy {
+        background: #f59e0b;
+    }
+
+    .driver-load {
+        font-size: 13px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+
+    /* Update marker label styles */
+    .circle-label {
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: white !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        pointer-events: none !important;
+        z-index: 1000 !important;
+    }
+
+    /* Add style for the marker container */
+    .leaflet-marker-pane {
+        z-index: 600;
+    }
+
+    .leaflet-tooltip-pane {
+        z-index: 650;
+    }
+
+    /* Add style for highlighted marker */
+    .marker-highlight {
+        filter: brightness(1.5);  /* Just brighten the color */
+    }
+
+    /* Add style for the marker container */
+    .leaflet-marker-icon {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .force-select {
+        padding: 4px 8px;
+        background: #fee2e2;
+        border: none;
+        border-radius: 4px;
+        color: #dc2626;
+        cursor: pointer;
+        margin-left: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .force-select:hover {
+        background: #fecaca;
+    }
+
+    .driver-card.force-selected {
+        border: 2px solid #dc2626;
+        background: #fef2f2;
+    }
+
+    .panel-header {
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 16px;
+    }
+
+    .panel-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .panel-subtitle {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    /* Custom scrollbar for drivers list */
+    .drivers-list::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .drivers-list::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .drivers-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .drivers-list::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    .btn {
+        padding: 14px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .btn svg, .btn i {
+        width: 18px;
+        height: 18px;
+    }
+
+    .btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        background: #94a3b8;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #1d4ed8;
+    }
+
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        background: #e2e8f0;
+    }
+
+    .btn-danger {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        background: #fecaca;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="load-builder-sidebar">
+        <div class="load-summary">
+            <h3>Selected Load</h3>
+            <div id="loadStats">
+                <div class="stat-group">
+                    <i data-lucide="map-pin"></i>
+                    <div class="stat-value"><span id="stopCount">0</span> stops</div>
+                </div>
+                <div class="stat-group">
+                    <i data-lucide="package"></i>
+                    <div class="stat-value"><span id="bagCount">0</span> bags</div>
+                </div>
+            </div>
+            <div class="selected-orders" id="selectedOrders">
+                <!-- Selected orders will be listed here -->
+            </div>
+        </div>
+
+        <div class="drivers-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Available Drivers</h2>
+                <p class="panel-subtitle">Select a driver to assign this load</p>
+            </div>
+            <div class="drivers-list">
+                {% for driver in drivers %}
+                <div class="driver-card {% if driver.deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length > 0 %}has-pending{% endif %}" 
+                     data-id="{{ driver.id }}"
+                     data-capacity="{{ driver.vehicle_capacity }}"
+                     onclick="selectDriver(this)">
+                    <div class="driver-header">
+                        <div class="driver-name">{{ driver.first_name }}</div>
+                        <div class="driver-capacity">{{ driver.vehicle_capacity }} bags</div>
+                    </div>
+                    
+                    <div class="capacity-meter">
+                        <div class="capacity-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="capacity-info">
+                        <span class="bags-selected">0 bags selected</span>
+                        <span class="capacity-percent">0%</span>
+                    </div>
+                    
+                    <div class="driver-status">
+                        <span class="status-indicator 
+                            {% if driver.deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length == 0 %}
+                                status-available
+                            {% else %}
+                                status-busy
+                            {% endif %}">
+                        </span>
+                        {% set pending_deliveries = driver.deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length %}
+                        {% if pending_deliveries > 0 %}
+                            {{ pending_deliveries }} pending deliveries
+                        {% else %}
+                            Available
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button class="assign-btn" id="assignBtn" disabled onclick="assignLoad()">
+                <i data-lucide="check"></i>
+                <span>Assign Load</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map;
+let markers = [];
+let selectedOrders = new Set();
+let selectedDriver = null;
+
+function initMap() {
+    map = L.map('map').setView([{{ config['SCHOOL_LATITUDE'] }}, {{ config['SCHOOL_LONGITUDE'] }}], 12);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Add markers for all orders
+    {% for order in orders %}
+    {% if order.latitude and order.longitude %}
+    addMarker(
+        {{ order.latitude }},
+        {{ order.longitude }},
+        {{ order.id }},
+        "{{ order.customer_name }}",
+        "{{ order.address }}",
+        {{ order.bags_ordered }},
+        "{{ order.mulch_type }}"
+    );
+    {% endif %}
+    {% endfor %}
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers.map(m => m.marker));
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+
+function addMarker(lat, lng, orderId, customerName, address, bags, mulchType) {
+    const marker = L.circleMarker([lat, lng], {
+        radius: 12,  // Increased radius to fit number
+        fillColor: getMulchColor(mulchType),
+        color: '#1e40af',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    }).addTo(map);
+    
+    // Add bag count as a permanent label
+    const label = L.tooltip({
+        permanent: true,
+        direction: 'center',
+        className: 'circle-label',
+        offset: [0, 0]
+    });
+    
+    marker.bindTooltip(bags.toString(), {
+        permanent: true,
+        direction: 'center',
+        className: 'circle-label'
+    });
+    
+    // Add hover tooltip with full details
+    const popup = L.popup({
+        offset: [0, -10]
+    }).setContent(`
+        <strong>${customerName}</strong><br>
+        ${address}<br>
+        ${bags} bags - ${mulchType}
+    `);
+    
+    marker.on('mouseover', () => {
+        if (!marker.isPopupOpen()) {
+            marker.openPopup(popup);
+        }
+    });
+    
+    marker.on('mouseout', () => {
+        if (!marker.isSelected) {
+            marker.closePopup();
+        }
+    });
+    
+    marker.on('click', () => toggleOrderSelection({
+        id: orderId,
+        customerName,
+        address,
+        bags,
+        mulchType
+    }));
+    
+    markers.push({
+        id: orderId,
+        marker: marker,
+        data: {
+            customerName,
+            address,
+            bags,
+            mulchType
+        }
+    });
+}
+
+function toggleOrderSelection(order) {
+    if (selectedOrders.has(order.id)) {
+        selectedOrders.delete(order.id);
+        markers.find(m => m.id === order.id).marker.setStyle({
+            fillColor: getMulchColor(order.mulchType)
+        });
+    } else {
+        selectedOrders.add(order.id);
+        markers.find(m => m.id === order.id).marker.setStyle({
+            fillColor: '#10b981'  // Green for selected
+        });
+    }
+    
+    updateLoadSummary();
+    updateAvailableDrivers();
+}
+
+function updateLoadSummary() {
+    const totalBags = Array.from(selectedOrders).reduce((sum, id) => {
+        const order = markers.find(m => m.id === id).data;
+        return sum + order.bags;
+    }, 0);
+    
+    document.getElementById('stopCount').textContent = selectedOrders.size;
+    document.getElementById('bagCount').textContent = totalBags;
+    
+    // Update selected orders list
+    const container = document.getElementById('selectedOrders');
+    container.innerHTML = Array.from(selectedOrders)
+        .map(id => {
+            const order = markers.find(m => m.id === id).data;
+            return `
+                <div class="selected-order-item" 
+                     onmouseenter="highlightMarker(${id})"
+                     onmouseleave="unhighlightMarker(${id})">
+                    <div class="order-details">
+                        <div class="order-name">${order.customerName}</div>
+                        <div class="order-bags">${order.bags} bags - ${order.mulchType}</div>
+                    </div>
+                    <div class="remove-order" onclick="toggleOrderSelection({
+                        id: ${id},
+                        customerName: '${order.customerName.replace(/'/g, "\\'")}',
+                        address: '${order.address.replace(/'/g, "\\'")}',
+                        bags: ${order.bags},
+                        mulchType: '${order.mulchType.replace(/'/g, "\\'")}'
+                    })">
+                        <i data-lucide="x"></i>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+    
+    // Refresh Lucide icons
+    lucide.createIcons();
+}
+
+function updateCapacityMeters() {
+    const totalBags = Array.from(selectedOrders).reduce((sum, id) => {
+        const order = markers.find(m => m.id === id).data;
+        return sum + order.bags;
+    }, 0);
+
+    document.querySelectorAll('.driver-card').forEach(card => {
+        const capacity = parseInt(card.dataset.capacity);
+        const percentage = (totalBags / capacity) * 100;
+        const bagDiff = capacity - totalBags;
+        const fill = card.querySelector('.capacity-fill');
+        const bagsText = card.querySelector('.bags-selected');
+        const percentText = card.querySelector('.capacity-percent');
+        
+        fill.style.width = `${Math.min(percentage, 100)}%`;
+        bagsText.textContent = `${totalBags} bags selected`;
+        
+        // Update percentage and difference
+        const diffClass = bagDiff < 0 ? 'over' : bagDiff > 0 ? 'under' : '';
+        const diffText = bagDiff === 0 ? 'at capacity' : 
+                        bagDiff > 0 ? `${bagDiff} under` : 
+                        `${Math.abs(bagDiff)} over`;
+        
+        percentText.innerHTML = `
+            <span>${Math.round(percentage)}%</span>
+            <span class="capacity-diff ${diffClass}">(${diffText})</span>
+        `;
+        
+        // Update color based on capacity
+        fill.classList.remove('warning', 'danger');
+        if (percentage > 100) {
+            fill.classList.add('danger');
+        } else if (percentage > 85) {
+            fill.classList.add('warning');
+        }
+    });
+}
+
+function forceSelect(event, element) {
+    event.stopPropagation();
+    const card = element.closest('.driver-card');
+    
+    // Remove selection from all other cards
+    document.querySelectorAll('.driver-card').forEach(c => {
+        c.classList.remove('selected', 'force-selected');
+    });
+    
+    if (card.classList.contains('force-selected')) {
+        card.classList.remove('force-selected');
+        selectedDriver = null;
+    } else {
+        card.classList.add('force-selected');
+        selectedDriver = card.dataset.id;
+    }
+    
+    // Enable assign button if we have orders selected
+    document.getElementById('assignBtn').disabled = !selectedDriver || selectedOrders.size === 0;
+}
+
+function updateAvailableDrivers() {
+    const totalBags = Array.from(selectedOrders).reduce((sum, id) => {
+        const order = markers.find(m => m.id === id).data;
+        return sum + order.bags;
+    }, 0);
+    
+    document.querySelectorAll('.driver-card').forEach(card => {
+        const capacity = parseInt(card.dataset.capacity);
+        const hasPendingDeliveries = card.querySelector('.status-busy') !== null;
+        
+        // Only mark as unavailable if over capacity and not force-selected
+        if (capacity < totalBags && !card.classList.contains('force-selected')) {
+            card.classList.add('unavailable');
+            card.classList.remove('available');
+            if (selectedDriver === card.dataset.id) {
+                selectedDriver = null;
+                card.classList.remove('selected');
+            }
+        } else {
+            card.classList.remove('unavailable');
+            card.classList.add('available');
+        }
+    });
+    
+    updateCapacityMeters();
+    
+    // Update assign button state
+    document.getElementById('assignBtn').disabled = !selectedDriver || selectedOrders.size === 0;
+}
+
+function selectDriver(element) {
+    // Check if driver has pending deliveries
+    const hasPendingDeliveries = element.querySelector('.status-busy') !== null;
+    if (hasPendingDeliveries) return;
+    
+    document.querySelectorAll('.driver-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    element.classList.add('selected');
+    selectedDriver = element.dataset.id;
+    
+    // Enable assign button if we have orders selected
+    document.getElementById('assignBtn').disabled = selectedOrders.size === 0;
+}
+
+function assignLoad() {
+    if (!selectedDriver || selectedOrders.size === 0) return;
+    
+    fetch('/admin/assign-orders', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            driver_id: selectedDriver,
+            order_ids: Array.from(selectedOrders)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Failed to assign orders');
+        }
+    });
+}
+
+function getMulchColor(mulchType) {
+    const colors = {
+        'Black Shredded Hardwood': '#000000',
+        'Red Shredded Hardwood': '#8B4513',
+        'Shredded Hardwood (Natural brown)': '#DEB887'
+    };
+    return colors[mulchType] || '#808080';
+}
+
+// Update the highlight/unhighlight functions to be simpler
+function highlightMarker(orderId) {
+    const marker = markers.find(m => m.id === orderId);
+    if (marker && marker.marker) {
+        marker.marker.setStyle({
+            fillOpacity: 1,  // Make it more vibrant
+            weight: 3       // Slightly thicker border
+        });
+        marker.marker.openPopup();
+    }
+}
+
+function unhighlightMarker(orderId) {
+    const marker = markers.find(m => m.id === orderId);
+    if (marker && marker.marker) {
+        marker.marker.setStyle({
+            fillOpacity: 0.8,  // Return to normal opacity
+            weight: 2         // Return to normal border width
+        });
+        marker.marker.closePopup();
+    }
+}
+
+// Initialize map when page loads
+document.addEventListener('DOMContentLoaded', initMap);
+</script>
+{% endblock %} 

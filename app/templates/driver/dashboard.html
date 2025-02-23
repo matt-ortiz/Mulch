@@ -1,0 +1,617 @@
+<!-- templates/driver/dashboard.html -->
+
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        background-color: #f1f5f9;
+        padding-bottom: 70px;
+    }
+
+    .header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        z-index: 100;
+        padding: 16px;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0;
+    }
+
+    .driver-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: bold;
+    }
+
+    .progress-bar {
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: #2563eb;
+        transition: width 0.3s ease;
+    }
+
+    .orders-container {
+        margin-top: 80px;
+        padding: 8px;
+        padding-bottom: 160px;
+    }
+
+    .order-card {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease;
+    }
+
+    .order-card:active {
+        transform: scale(0.98);
+    }
+
+    .order-card.completed {
+        opacity: 0.6;
+        background: #f8fafc;
+    }
+
+    .order-header {
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+    }
+
+    .order-info {
+        flex: 1;
+    }
+
+    .bags-info {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 10px;
+    }
+
+    .bags-info svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .address-info {
+        font-size: 14px;
+        line-height: 1.4;
+        color: #64748b;
+    }
+
+    .address-info svg {
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+    }
+
+    .order-details {
+        display: block;
+        max-height: 0;
+        overflow: hidden;
+        padding: 0 20px;
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+
+    .order-details.active {
+        max-height: 500px;
+        padding: 20px;
+    }
+
+    .action-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .btn {
+        padding: 14px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .btn-call {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .btn-navigate {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-complete {
+        background: #16a34a;
+        color: white;
+        width: 100%;
+    }
+
+    .bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e2e8f0;
+        padding: 16px;
+        display: flex;
+        justify-content: space-around;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #64748b;
+        text-decoration: none;
+        font-size: 13px;
+        gap: 6px;
+        padding: 8px 0;
+    }
+
+    .nav-item.active {
+        color: #2563eb;
+    }
+
+    .nav-item i {
+        margin-bottom: 4px;
+        font-size: 1.5rem;
+    }
+
+    .nav-item svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .orders-section {
+        margin-bottom: 24px;
+    }
+
+    .section-header {
+        padding: 16px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #475569;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .section-count {
+        font-weight: 500;
+        background: #f1f5f9;
+        padding: 6px 12px;
+    }
+
+    .completed-section {
+        opacity: 0.8;
+    }
+
+    .pull-to-refresh {
+        display: none;
+        padding: 16px;
+        font-size: 14px;
+        color: #64748b;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .refreshing .pull-to-refresh {
+        display: flex;
+    }
+
+    .pull-to-refresh svg {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #64748b;
+    }
+
+    .empty-state svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+        color: #94a3b8;
+    }
+
+    .vehicle-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: bold;
+    }
+
+    .vehicle-info svg, .driver-info svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .order-header i[data-lucide="chevron-down"] {
+        transition: transform 0.3s ease;
+    }
+
+    .order-header i[data-lucide="chevron-down"].rotate {
+        transform: rotate(180deg);
+    }
+
+    /* Loading state */
+    .loading {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
+    .customer-info {
+        margin-bottom: 16px;
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .customer-name {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .customer-name svg {
+        width: 16px;
+        height: 16px;
+        color: #64748b;
+    }
+
+    .notes {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
+        background: #f1f5f9;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+        border-left: 3px solid #2563eb;
+    }
+
+    .notes-label {
+        font-weight: 500;
+        color: #64748b;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="header">
+    <div class="header-content">
+        <div class="driver-info">
+            <i data-lucide="user"></i>
+            <span>{{ current_user.first_name }}</span>
+        </div>
+        <div class="vehicle-info">
+            <i data-lucide="package"></i>
+            <span>{{ current_user.vehicle_capacity }} bag capacity</span>
+        </div>
+    </div>
+</header>
+
+<div class="orders-container">
+    <div class="pull-to-refresh">
+        <i data-lucide="refresh-cw"></i>
+        <span>Pull to refresh</span>
+    </div>
+
+    {% if not deliveries %}
+    <div class="empty-state">
+        <i data-lucide="package"></i>
+        <p>No deliveries assigned yet</p>
+    </div>
+    {% else %}
+    <div class="orders-section">
+        <div class="section-header">
+            Active Orders
+            <span class="section-count">
+                {{ deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length }} orders,
+                {{ deliveries|selectattr('status', 'in', ['pending', 'assigned'])|sum(attribute='order.bags_ordered') }} bags
+            </span>
+        </div>
+        {% for delivery in deliveries %}
+            {% if delivery.status in ['pending', 'assigned'] %}
+            <div class="order-card" data-id="{{ delivery.id }}">
+                <div class="order-header" onclick="toggleOrderDetails({{ delivery.id }})">
+                    <div class="order-info">
+                        <div class="bags-info">
+                            <i data-lucide="package"></i>
+                            <span>{{ delivery.order.bags_ordered }} bags - {{ delivery.order.mulch_type.split('(')[0].strip() }}</span>
+                        </div>
+                        <div class="address-info">
+                            <i class="lucide-map-pin"></i>
+                            <span>{{ delivery.order.address }}</span>
+                        </div>
+                    </div>
+                    <i class="lucide-chevron-down"></i>
+                </div>
+                <div class="order-details" id="details-{{ delivery.id }}">
+                    <div class="customer-info">
+                        <div class="customer-name">
+                            <i data-lucide="user"></i>
+                            {{ delivery.order.customer_name }}
+                        </div>
+                        {% if delivery.order.notes %}
+                        <div class="notes">
+                            <div class="notes-label">Delivery Instructions</div>
+                            {{ delivery.order.notes }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="action-buttons">
+                        {% if delivery.order.phone %}
+                            {% if delivery.order.preferred_contact == 'text' %}
+                            <button class="btn btn-call" onclick="textCustomer('{{ delivery.order.phone }}')">
+                                <i class="lucide-message-circle"></i>
+                                <span>Text</span>
+                            </button>
+                            {% else %}
+                            <button class="btn btn-call" onclick="callCustomer('{{ delivery.order.phone }}')">
+                                <i class="lucide-phone"></i>
+                                <span>Call</span>
+                            </button>
+                            {% endif %}
+                        {% endif %}
+                        <button class="btn btn-navigate" onclick="navigate('{{ delivery.order.address }}')">
+                            <i class="lucide-navigation-2"></i>
+                            <span>Navigate</span>
+                        </button>
+                    </div>
+                    {% if delivery.status != 'delivered' %}
+                    <button class="btn btn-complete" onclick="markComplete({{ delivery.id }})">
+                        <i class="lucide-check"></i>
+                        <span>Mark Complete</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="orders-section completed-section">
+        <div class="section-header">
+            Completed Orders
+            <span class="section-count">
+                {% set completed_orders = deliveries|selectattr('status', 'equalto', 'delivered')|list %}
+                {{ completed_orders|length }} orders,
+                {{ completed_orders|sum(attribute='order.bags_ordered') }} bags
+            </span>
+        </div>
+        {% for delivery in deliveries %}
+            {% if delivery.status == 'delivered' %}
+            <div class="order-card completed" data-id="{{ delivery.id }}">
+                <div class="order-header" onclick="toggleOrderDetails({{ delivery.id }})">
+                    <div class="order-info">
+                        <div class="bags-info">
+                            <i data-lucide="package"></i>
+                            <span>{{ delivery.order.bags_ordered }} bags - {{ delivery.order.mulch_type.split('(')[0].strip() }}</span>
+                        </div>
+                        <div class="address-info">
+                            <i class="lucide-map-pin"></i>
+                            <span>{{ delivery.order.address }}</span>
+                        </div>
+                    </div>
+                    <i class="lucide-chevron-down"></i>
+                </div>
+                <div class="order-details" id="details-{{ delivery.id }}">
+                    <div class="customer-info">
+                        <div class="customer-name">
+                            <i data-lucide="user"></i>
+                            {{ delivery.order.customer_name }}
+                        </div>
+                        {% if delivery.order.notes %}
+                        <div class="notes">
+                            <div class="notes-label">Delivery Instructions</div>
+                            {{ delivery.order.notes }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="action-buttons">
+                        {% if delivery.order.phone %}
+                            {% if delivery.order.preferred_contact == 'text' %}
+                            <button class="btn btn-call" onclick="textCustomer('{{ delivery.order.phone }}')">
+                                <i class="lucide-message-circle"></i>
+                                <span>Text</span>
+                            </button>
+                            {% else %}
+                            <button class="btn btn-call" onclick="callCustomer('{{ delivery.order.phone }}')">
+                                <i class="lucide-phone"></i>
+                                <span>Call</span>
+                            </button>
+                            {% endif %}
+                        {% endif %}
+                        <button class="btn btn-navigate" onclick="navigate('{{ delivery.order.address }}')">
+                            <i class="lucide-navigation-2"></i>
+                            <span>Navigate</span>
+                        </button>
+                    </div>
+                    {% if delivery.status != 'delivered' %}
+                    <button class="btn btn-complete" onclick="markComplete({{ delivery.id }})">
+                        <i class="lucide-check"></i>
+                        <span>Mark Complete</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<nav class="bottom-nav">
+    <a href="{{ url_for('driver.dashboard') }}" class="nav-item active">
+        <i data-lucide="clipboard-list"></i>
+        <span>Orders</span>
+    </a>
+    <a href="{{ url_for('driver.view_route') }}" class="nav-item">
+        <i data-lucide="map-pin"></i>
+        <span>Map</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    function toggleOrderDetails(orderId) {
+        const details = document.getElementById(`details-${orderId}`);
+        const card = document.querySelector(`[data-id="${orderId}"]`);
+        const chevron = card.querySelector('[data-lucide="chevron-down"]');
+        
+        if (details.classList.contains('active')) {
+            details.classList.remove('active');
+            chevron.style.transform = '';
+        } else {
+            details.classList.add('active');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    function callCustomer(phone) {
+        window.open(`tel:${phone}`);
+    }
+
+    function navigate(address) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+    }
+
+    function markComplete(deliveryId) {
+        const card = document.querySelector(`[data-id="${deliveryId}"]`);
+        card.classList.add('loading');
+        
+        fetch(`/delivery/${deliveryId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            card.classList.remove('loading');
+        });
+    }
+
+    function textCustomer(phone) {
+        // Clean the phone number
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        // Check if it's iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        // Use different SMS URL schemes for iOS and other devices
+        const smsUrl = isIOS ? 
+            `sms:${cleanPhone}&body=` : 
+            `sms:${cleanPhone}`;
+            
+        window.location.href = smsUrl;
+    }
+
+    let touchStart = 0;
+    const container = document.querySelector('.orders-container');
+    const PULL_THRESHOLD = 100;
+    
+    container.addEventListener('touchstart', (e) => {
+        touchStart = e.touches[0].clientY;
+    });
+    
+    container.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0].clientY;
+        const scroll = container.scrollTop;
+        const pullDistance = touch - touchStart;
+        
+        if (scroll === 0 && pullDistance > PULL_THRESHOLD) {
+            container.classList.add('refreshing');
+        }
+    });
+    
+    container.addEventListener('touchend', (e) => {
+        if (container.classList.contains('refreshing')) {
+            location.reload();
+        }
+        container.classList.remove('refreshing');
+    });
+
+    container.addEventListener('touchcancel', () => {
+        container.classList.remove('refreshing');
+    });
+
+    function vibrateOnAction() {
+        if ('vibrate' in navigator) {
+            navigator.vibrate(50);
+        }
+    }
+
+    document.querySelectorAll('.btn').forEach(btn => {
+        btn.addEventListener('click', vibrateOnAction);
+    });
+</script>
+{% endblock %}

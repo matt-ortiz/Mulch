@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    .page-container {
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 24px;
+        height: calc(100vh - 48px);
+    }
+
+    .drivers-panel {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .panel-header {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .panel-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .panel-subtitle {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .drivers-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    .driver-card {
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .driver-card:hover {
+        border-color: #2563eb;
+        background: #f8fafc;
+    }
+
+    .driver-card.selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+    }
+
+    .driver-name {
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .driver-capacity {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .load-panel {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: grid;
+        grid-template-rows: auto 1fr;
+        height: 100%;
+    }
+
+    .load-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        padding: 24px;
+    }
+
+    .orders-section {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .orders-header {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .load-stats {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .stats-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .stat-item i {
+        font-size: 14px;
+    }
+
+    .stat-value {
+        color: #1e293b;
+        font-weight: 500;
+    }
+
+    .stat-divider {
+        color: #cbd5e1;
+    }
+
+    .assigned-badge {
+        background: #dbeafe;
+        color: #1e40af;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .orders-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    #map {
+        height: 100%;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .mulch-summary {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .mulch-type {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        background: #f1f5f9;
+    }
+
+    .generate-btn {
+        width: 100%;
+        padding: 12px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .generate-btn:hover {
+        background: #1d4ed8;
+    }
+
+    .generate-btn:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+    }
+
+    .order-item {
+        padding: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .order-item:hover {
+        background: #f8fafc;
+    }
+
+    .order-item:last-child {
+        border-bottom: none;
+    }
+
+    .order-name {
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .order-details {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .order-address {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #64748b;
+        font-size: 13px;
+        margin-top: 4px;
+    }
+
+    .mulch-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .mulch-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+    }
+
+    .bags-count {
+        background: #f1f5f9;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: #1e40af;
+    }
+
+    .button-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .btn-secondary {
+        width: 100%;
+        padding: 12px;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+    .btn-secondary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .assigned-order {
+        background: #f8fafc;
+        border-left: 4px solid #2563eb;
+    }
+
+    .unassign-btn {
+        margin-top: 8px;
+        padding: 4px 8px;
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .unassign-btn:hover {
+        background: #fecaca;
+        transform: scale(1.05);
+    }
+
+    .order-item {
+        transition: all 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="drivers-panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Available Drivers</h2>
+            <p class="panel-subtitle">Select a driver to generate a load</p>
+            
+            <div class="mulch-summary">
+                {% for mulch_type, total in mulch_totals.items() %}
+                <div class="mulch-type">
+                    {{ total }} {{ mulch_type }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="drivers-list">
+            {% for driver in drivers %}
+            <div class="driver-card" onclick="selectDriver({{ driver.id }})">
+                <div class="driver-name">{{ driver.first_name }}</div>
+                <div class="driver-capacity">
+                    Capacity: {{ driver.vehicle_capacity }} bags
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="load-panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Generate Load</h2>
+            <p class="panel-subtitle">Select a driver to view potential load</p>
+        </div>
+        
+        <div class="load-content">
+            <div class="orders-section">
+                <div class="orders-header">
+                    <h3 class="section-title">Suggested Orders</h3>
+                    <div id="loadStats" class="load-stats">
+                        <div class="stats-group">
+                            <span class="stat-item">
+                                <i class="lucide-map-pin"></i>
+                                <span class="stat-value">4 stops</span>
+                            </span>
+                            <span class="stat-divider">•</span>
+                            <span class="stat-item">
+                                <i class="lucide-package"></i>
+                                <span class="stat-value">55 bags</span>
+                            </span>
+                            <span class="stat-divider">•</span>
+                            <span class="stat-item">
+                                <i class="lucide-truck"></i>
+                                <span class="stat-value">100% capacity</span>
+                            </span>
+                        </div>
+                        <span class="assigned-badge">Current Load</span>
+                    </div>
+                </div>
+                <div class="orders-list" id="suggestedOrders">
+                    <!-- Orders will be populated here -->
+                </div>
+                <div class="button-group">
+                    <button id="findNewBtn" class="btn btn-secondary" onclick="findNewLoad()">
+                        <i class="lucide-refresh-cw"></i>
+                        Find New Load
+                    </button>
+                    <button id="assignBtn" class="generate-btn" disabled onclick="assignLoad()">
+                        <i class="lucide-check"></i>
+                        Assign Load
+                    </button>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map;
+let markers = [];
+let selectedDriver = null;
+let currentSuggestionIndex = 0;
+let selectedDriverCapacity = 0;
+
+// Initialize map
+document.addEventListener('DOMContentLoaded', function() {
+    map = L.map('map').setView([{{ config['SCHOOL_LATITUDE'] }}, {{ config['SCHOOL_LONGITUDE'] }}], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+});
+
+function selectDriver(driverId) {
+    // Update UI selection
+    document.querySelectorAll('.driver-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    const selectedCard = document.querySelector(`.driver-card[onclick*="${driverId}"]`);
+    selectedCard.classList.add('selected');
+    
+    // Store the driver's capacity
+    selectedDriverCapacity = parseInt(selectedCard.querySelector('.driver-capacity').textContent.match(/\d+/)[0]);
+    
+    // Enable both buttons when a driver is selected
+    document.getElementById('findNewBtn').disabled = false;
+    document.getElementById('assignBtn').disabled = false;
+    selectedDriver = driverId;
+    
+    // Reset suggestion index when selecting a new driver
+    currentSuggestionIndex = 0;
+    
+    // Fetch suggested load
+    fetch(`/admin/suggest-load/${driverId}`)
+        .then(response => response.json())
+        .then(data => {
+            updateMap(data.orders);
+            updateOrdersList(data.orders, data.stats);
+            currentSuggestionIndex = data.stats.suggestion_index;
+        });
+}
+
+function updateMap(orders) {
+    // Clear existing markers
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+    
+    // Add new markers
+    orders.forEach(order => {
+        if (order.latitude && order.longitude) {  // Only add if coordinates exist
+            const marker = L.circleMarker([order.latitude, order.longitude], {
+                radius: 8,
+                fillColor: getMulchColor(order.mulch_type),
+                color: '#1e40af',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <strong>${order.customer_name}</strong><br>
+                ${order.address}<br>
+                ${order.bags_ordered} bags - ${order.mulch_type}
+            `);
+            
+            markers.push(marker);
+        }
+    });
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+
+function updateOrdersList(orders, stats) {
+    const container = document.getElementById('suggestedOrders');
+    container.innerHTML = orders.map(order => `
+        <div class="order-item ${order.is_assigned ? 'assigned-order' : ''}" data-order-id="${order.id}">
+            <div class="order-name">${order.customer_name}</div>
+            <div class="order-details">
+                <div class="mulch-info">
+                    <span class="mulch-dot" style="background: ${getMulchColor(order.mulch_type)}"></span>
+                    <span>${order.mulch_type}</span>
+                </div>
+                <span class="bags-count">${order.bags_ordered} bags</span>
+            </div>
+            <div class="order-address">
+                <i class="lucide-map-pin" style="font-size: 14px;"></i>
+                ${order.address}
+            </div>
+            ${order.is_assigned ? `
+                <button class="unassign-btn" onclick="unassignOrder(event, ${order.delivery_id}, ${order.id})">
+                    <i class="lucide-x"></i>
+                    Unassign
+                </button>
+            ` : ''}
+        </div>
+    `).join('');
+    
+    document.getElementById('loadStats').innerHTML = `
+        <div class="stats-group">
+            <span class="stat-item">
+                <i class="lucide-map-pin"></i>
+                <span class="stat-value">${orders.length} stops</span>
+            </span>
+            <span class="stat-divider">•</span>
+            <span class="stat-item">
+                <i class="lucide-package"></i>
+                <span class="stat-value">${stats.total_bags} bags</span>
+            </span>
+            <span class="stat-divider">•</span>
+            <span class="stat-item">
+                <i class="lucide-truck"></i>
+                <span class="stat-value">${Math.round(stats.capacity_used * 100)}% capacity</span>
+            </span>
+        </div>
+        ${orders.some(o => o.is_assigned) ? '<span class="assigned-badge">Current Load</span>' : ''}
+    `;
+    
+    // Disable assign button if these are assigned orders
+    document.getElementById('assignBtn').disabled = orders.some(o => o.is_assigned);
+    document.getElementById('findNewBtn').disabled = orders.some(o => o.is_assigned);
+}
+
+function assignLoad() {
+    if (!selectedDriver) return;
+    
+    // Get the order IDs from the current suggestion
+    const orderIds = Array.from(document.querySelectorAll('.order-item'))
+        .map(item => parseInt(item.dataset.orderId));
+    
+    fetch('/admin/assign-suggested-load', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            driver_id: selectedDriver,
+            order_ids: orderIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+
+function findNewLoad() {
+    if (!selectedDriver) return;
+    
+    // Add loading state
+    const findBtn = document.getElementById('findNewBtn');
+    const originalText = findBtn.innerHTML;
+    findBtn.innerHTML = '<i class="lucide-loader"></i> Finding...';
+    findBtn.disabled = true;
+    
+    // Request a new load suggestion
+    fetch(`/admin/suggest-load/${selectedDriver}?skip_previous=true&last_suggestion=${currentSuggestionIndex}`)
+        .then(response => response.json())
+        .then(data => {
+            updateMap(data.orders);
+            updateOrdersList(data.orders, data.stats);
+            currentSuggestionIndex = data.stats.suggestion_index;
+        })
+        .finally(() => {
+            findBtn.innerHTML = originalText;
+            findBtn.disabled = false;
+        });
+}
+
+function getMulchColor(mulchType) {
+    const colors = {
+        'Black Shredded Hardwood': '#000000',
+        'Red Shredded Hardwood': '#8B4513',
+        'Shredded Hardwood (Natural brown)': '#DEB887'
+    };
+    return colors[mulchType] || '#808080';
+}
+
+function unassignOrder(event, deliveryId, orderId) {
+    event.stopPropagation();  // Prevent order item click
+    
+    if (!confirm('Unassign this order?')) return;
+    
+    // Find the order item element
+    const orderItem = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
+    
+    // Add loading state
+    orderItem.style.opacity = '0.5';
+    
+    fetch('/admin/unassign-order', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: deliveryId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the order item with animation
+            orderItem.style.transform = 'translateX(100%)';
+            orderItem.style.opacity = '0';
+            setTimeout(() => {
+                orderItem.remove();
+                
+                // Update stats
+                updateStats();
+                
+                // Refresh the map data and markers
+                if (selectedDriver) {
+                    fetch(`/admin/suggest-load/${selectedDriver}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            // Update map with new data
+                            updateMap(data.orders);
+                            // Update orders list
+                            updateOrdersList(data.orders, data.stats);
+                        });
+                }
+            }, 300);
+        } else {
+            alert('Failed to unassign order');
+            orderItem.style.opacity = '1';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to unassign order');
+        orderItem.style.opacity = '1';
+    });
+}
+
+function updateStats() {
+    // Get all visible orders
+    const orders = document.querySelectorAll('.order-item');
+    let totalBags = 0;
+    orders.forEach(order => {
+        const bagsText = order.querySelector('.bags-count').textContent;
+        const bags = parseInt(bagsText);
+        if (!isNaN(bags)) totalBags += bags;
+    });
+    
+    // Calculate capacity percentage
+    const capacityPercentage = selectedDriverCapacity ? 
+        Math.round((totalBags / selectedDriverCapacity) * 100) : 0;
+    
+    // Update the stats display
+    document.getElementById('loadStats').innerHTML = `
+        <div class="stats-group">
+            <span class="stat-item">
+                <i class="lucide-map-pin"></i>
+                <span class="stat-value">${orders.length} stops</span>
+            </span>
+            <span class="stat-divider">•</span>
+            <span class="stat-item">
+                <i class="lucide-package"></i>
+                <span class="stat-value">${totalBags} bags</span>
+            </span>
+            <span class="stat-divider">•</span>
+            <span class="stat-item">
+                <i class="lucide-truck"></i>
+                <span class="stat-value">${capacityPercentage}% capacity</span>
+            </span>
+        </div>
+        <span class="assigned-badge">Current Load</span>
+    `;
+}
+</script>
+{% endblock %} 

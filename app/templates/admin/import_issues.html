@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .issues-container {
+        max-width: 1200px;
+        margin: 24px auto;
+        padding: 24px;
+    }
+
+    .issues-header {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .header-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .header-subtitle {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .issues-grid {
+        display: grid;
+        gap: 16px;
+    }
+
+    .order-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .order-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .order-id {
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .issue-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        background: #fee2e2;
+        color: #991b1b;
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+
+    .flash-messages {
+        margin-bottom: 16px;
+    }
+
+    .flash-message {
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .flash-message.success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .flash-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .no-issues {
+        text-align: center;
+        padding: 40px;
+        background: white;
+        border-radius: 8px;
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="issues-container">
+    <div class="issues-header">
+        <h1 class="header-title">Import Issues</h1>
+        <p class="header-subtitle">Review and fix orders that had issues during import</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash-message {{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if not orders %}
+    <div class="no-issues">
+        <i data-lucide="check-circle" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
+        <p>No issues found with imported orders</p>
+    </div>
+    {% else %}
+    <div class="issues-grid">
+        {% for order in orders %}
+        <div class="order-card">
+            <div class="order-header">
+                <div class="order-id">Order #{{ order.id }}</div>
+                <div class="issue-tags">
+                    {% if not order.bags_ordered %}
+                    <span class="issue-badge">Invalid Bag Count</span>
+                    {% endif %}
+                    {% if not order.customer_name %}
+                    <span class="issue-badge">Missing Name</span>
+                    {% endif %}
+                    {% if not order.address %}
+                    <span class="issue-badge">Missing Address</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <form method="POST">
+                <input type="hidden" name="order_id" value="{{ order.id }}">
+                
+                <div class="form-group">
+                    <label class="form-label" for="customer_name_{{ order.id }}">Customer Name</label>
+                    <input type="text" class="form-control" id="customer_name_{{ order.id }}" 
+                           name="value" value="{{ order.customer_name }}" required>
+                    <input type="hidden" name="field" value="customer_name">
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+
+            <form method="POST">
+                <input type="hidden" name="order_id" value="{{ order.id }}">
+                
+                <div class="form-group">
+                    <label class="form-label" for="bags_{{ order.id }}">Bags Ordered</label>
+                    <input type="number" class="form-control" id="bags_{{ order.id }}" 
+                           name="value" value="{{ order.bags_ordered }}" required>
+                    <input type="hidden" name="field" value="bags_ordered">
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+
+            <form method="POST">
+                <input type="hidden" name="order_id" value="{{ order.id }}">
+                
+                <div class="form-group">
+                    <label class="form-label" for="address_{{ order.id }}">Address</label>
+                    <input type="text" class="form-control" id="address_{{ order.id }}" 
+                           name="value" value="{{ order.address }}" required>
+                    <input type="hidden" name="field" value="address">
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
