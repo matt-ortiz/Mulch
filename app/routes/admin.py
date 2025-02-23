@@ -2000,12 +2000,12 @@ def optimize_with_graphhopper(orders, settings):
 
     # Debug print the request
     print("\nSending to GraphHopper:")
-    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/optimize")
+    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/vrp")
     print(f"Payload: {json.dumps(payload, indent=2)}")
 
     try:
         response = requests.post(
-            f"{current_app.config['GRAPHHOPPER_URL']}/optimize",
+            f"{current_app.config['GRAPHHOPPER_URL']}/vrp",
             headers={'Content-Type': 'application/json'},
             json=payload
         )
