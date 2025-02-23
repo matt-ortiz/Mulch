@@ -70,6 +70,15 @@
 
 <div class="route-controls">
     <h3>Delivery Routes</h3>
+    
+    <!-- Add recalculate button -->
+    <div class="mb-3">
+        <a href="{{ url_for('admin.view_routes', recalculate=true) }}" 
+           class="btn btn-primary">
+            Recalculate Routes
+        </a>
+    </div>
+
     {% for mulch_type in clustered_data.routes.keys() %}
     <div class="mulch-type-toggle">
         <label>
