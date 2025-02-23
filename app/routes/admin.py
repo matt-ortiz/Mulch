@@ -14,6 +14,7 @@ import time
 import pdfkit
 import io
 from itertools import combinations
+import requests
 
 admin_routes = Blueprint('admin', __name__)
 
@@ -1875,24 +1876,22 @@ def view_routes():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
-    # Get school location from settings
     settings = Settings.query.first()
     if not settings:
         flash('Please configure school location in settings first', 'error')
         return redirect(url_for('admin.settings'))
-    
-    school_lat = float(settings.school_latitude)
-    school_lng = float(settings.school_longitude)
-    school_address = settings.school_address
-    
-    # Rest of the function remains the same, but use settings.school_address instead of config
+
     clustered_data = {
         'school': {
-            'lat': school_lat,
-            'lng': school_lng,
-            'address': school_address  # Updated to use settings
+            'lat': settings.school_latitude,
+            'lng': settings.school_longitude,
+            'address': settings.school_address
         },
-        'routes': {}
+        'routes': {},
+        'stats': {
+            'total_orders': 0,
+            'mulch_types': {}
+        }
     }
     
     # Get all orders with valid coordinates
@@ -1908,106 +1907,107 @@ def view_routes():
             orders_by_mulch[order.mulch_type] = []
         orders_by_mulch[order.mulch_type].append(order)
     
-    # For each mulch type, create one optimized route
+    # Optimize routes for each mulch type
     for mulch_type, mulch_orders in orders_by_mulch.items():
-        # Start with orders closest to school
-        current_point = (school_lat, school_lng)
-        route_orders = []
-        remaining = mulch_orders.copy()
+        optimized_route = optimize_with_graphhopper(mulch_orders, settings)
         
-        # Build route one point at a time
-        while remaining:
-            # Find closest order to current point
-            next_order = min(remaining, key=lambda x: calculate_distance(
-                current_point[0], current_point[1],
-                x.latitude, x.longitude
-            ))
+        if optimized_route:
+            clustered_data['routes'][mulch_type] = [optimized_route]
             
-            route_orders.append(next_order)
-            current_point = (next_order.latitude, next_order.longitude)
-            remaining.remove(next_order)
-        
-        # Convert to serializable format with school as start/end point
-        serialized_route = []
-        
-        # Add school as starting point
-        serialized_route.append({
-            'id': 'school_start',
-            'customer_name': 'Hayfield Secondary',
-            'address': school_address,
-            'latitude': float(school_lat),
-            'longitude': float(school_lng),
-            'stop_number': 0,
-            'is_school': True,
-            'distance_from_prev': 0,
-            'running_bag_total': 0
-        })
-        
-        # Add all delivery stops
-        for i, order in enumerate(route_orders, 1):
-            # Calculate distance from previous point
-            prev_lat = school_lat if i == 1 else route_orders[i-2].latitude
-            prev_lng = school_lng if i == 1 else route_orders[i-2].longitude
+            # Update stats
+            delivery_stops = [stop for stop in optimized_route if not stop.get('is_school')]
+            clustered_data['stats']['mulch_types'][mulch_type] = {
+                'total_stops': len(delivery_stops),
+                'total_bags': sum(stop['bags_ordered'] for stop in delivery_stops)
+            }
+            clustered_data['stats']['total_orders'] += len(delivery_stops)
+        else:
+            # Fallback to current nearest-neighbor method if GraphHopper fails
+            print(f"Falling back to nearest-neighbor for {mulch_type}")
+            # Use existing nearest-neighbor code as fallback
+            current_point = (settings.school_latitude, settings.school_longitude)
+            route_orders = []
+            remaining = mulch_orders.copy()
             
-            distance_from_prev = calculate_distance(
-                prev_lat, prev_lng,
-                order.latitude, order.longitude
-            )
+            while remaining:
+                next_order = min(remaining, key=lambda x: calculate_distance(
+                    current_point[0], current_point[1],
+                    x.latitude, x.longitude
+                ))
+                route_orders.append(next_order)
+                current_point = (next_order.latitude, next_order.longitude)
+                remaining.remove(next_order)
             
+            # Convert to same format as GraphHopper output
+            serialized_route = []
+            running_bags = 0
+            
+            # Add school start
             serialized_route.append({
-                'id': order.id,
-                'customer_name': order.customer_name,
-                'address': order.address,
-                'latitude': float(order.latitude),
-                'longitude': float(order.longitude),
-                'bags_ordered': order.bags_ordered,
-                'mulch_type': order.mulch_type,
-                'phone': order.phone,
-                'preferred_contact': order.preferred_contact,
-                'notes': order.notes,
-                'stop_number': i,
-                'is_school': False,
-                'distance_from_prev': round(distance_from_prev, 1),
-                'running_bag_total': sum(o.bags_ordered for o in route_orders[:i])
+                'id': 'school_start',
+                'customer_name': 'Hayfield Secondary',
+                'address': settings.school_address,
+                'latitude': float(settings.school_latitude),
+                'longitude': float(settings.school_longitude),
+                'stop_number': 0,
+                'is_school': True,
+                'distance_from_prev': 0,
+                'running_bag_total': 0
             })
-        
-        # Add school as ending point
-        last_lat = route_orders[-1].latitude if route_orders else school_lat
-        last_lng = route_orders[-1].longitude if route_orders else school_lng
-        distance_to_school = calculate_distance(last_lat, last_lng, school_lat, school_lng)
-        
-        serialized_route.append({
-            'id': 'school_end',
-            'customer_name': 'Hayfield Secondary',
-            'address': school_address,
-            'latitude': float(school_lat),
-            'longitude': float(school_lng),
-            'stop_number': len(route_orders) + 1,
-            'is_school': True,
-            'distance_from_prev': round(distance_to_school, 1),
-            'running_bag_total': sum(o.bags_ordered for o in route_orders)
-        })
-        
-        # Store as a single route
-        clustered_data['routes'][mulch_type] = [serialized_route]
-        
-        print(f"Created route for {mulch_type}: {len(serialized_route)} stops (including school)")
-    
-    # Add stats to the clustered_data
-    clustered_data['stats'] = {
-        'total_orders': len(orders),
-        'mulch_types': {}
-    }
-    
-    for mulch_type, routes in clustered_data['routes'].items():
-        route = routes[0]  # We only have one route per mulch type now
-        # Exclude school points from stats
-        delivery_stops = [stop for stop in route if not stop.get('is_school')]
-        clustered_data['stats']['mulch_types'][mulch_type] = {
-            'total_stops': len(delivery_stops),
-            'total_bags': sum(stop['bags_ordered'] for stop in delivery_stops)
-        }
-    
+            
+            # Add delivery stops
+            for i, order in enumerate(route_orders, 1):
+                running_bags += order.bags_ordered
+                serialized_route.append({
+                    'id': order.id,
+                    'customer_name': order.customer_name,
+                    'address': order.address,
+                    'latitude': float(order.latitude),
+                    'longitude': float(order.longitude),
+                    'bags_ordered': order.bags_ordered,
+                    'mulch_type': order.mulch_type,
+                    'phone': order.phone,
+                    'preferred_contact': order.preferred_contact,
+                    'notes': order.notes,
+                    'stop_number': i,
+                    'is_school': False,
+                    'distance_from_prev': calculate_distance(
+                        serialized_route[-1]['latitude'],
+                        serialized_route[-1]['longitude'],
+                        order.latitude,
+                        order.longitude
+                    ),
+                    'running_bag_total': running_bags
+                })
+            
+            # Add school end
+            serialized_route.append({
+                'id': 'school_end',
+                'customer_name': 'Hayfield Secondary',
+                'address': settings.school_address,
+                'latitude': float(settings.school_latitude),
+                'longitude': float(settings.school_longitude),
+                'stop_number': len(route_orders) + 1,
+                'is_school': True,
+                'distance_from_prev': calculate_distance(
+                    route_orders[-1].latitude,
+                    route_orders[-1].longitude,
+                    settings.school_latitude,
+                    settings.school_longitude
+                ),
+                'running_bag_total': running_bags
+            })
+            
+            clustered_data['routes'][mulch_type] = [serialized_route]
+            
+            # Update stats
+            delivery_stops = [stop for stop in serialized_route if not stop.get('is_school')]
+            clustered_data['stats']['mulch_types'][mulch_type] = {
+                'total_stops': len(delivery_stops),
+                'total_bags': sum(stop['bags_ordered'] for stop in delivery_stops)
+            }
+            clustered_data['stats']['total_orders'] += len(delivery_stops)
+
     return render_template('admin/view_routes.html', clustered_data=clustered_data)
 
 @admin_routes.route('/update-school-location', methods=['POST'])
@@ -2044,4 +2044,116 @@ def update_school_location():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+def optimize_with_graphhopper(orders, settings):
+    """Optimize route using local GraphHopper instance"""
+    
+    # Start with school location
+    points = [{
+        'id': 'school_start',
+        'address': settings.school_address,
+        'latitude': settings.school_latitude,
+        'longitude': settings.school_longitude
+    }]
+
+    # Add delivery points
+    for order in orders:
+        points.append({
+            'id': str(order.id),
+            'address': order.address,
+            'latitude': float(order.latitude),
+            'longitude': float(order.longitude)
+        })
+
+    # Add school as end point
+    points.append({
+        'id': 'school_end',
+        'address': settings.school_address,
+        'latitude': settings.school_latitude,
+        'longitude': settings.school_longitude
+    })
+
+    # Prepare GraphHopper request
+    payload = {
+        'vehicles': [{
+            'vehicle_id': 'mulch_truck',
+            'start_address': {
+                'location_id': 'school_start',
+                'lon': settings.school_longitude,
+                'lat': settings.school_latitude
+            },
+            'end_address': {
+                'location_id': 'school_end',
+                'lon': settings.school_longitude,
+                'lat': settings.school_latitude
+            }
+        }],
+        'services': [
+            {
+                'id': str(p['id']),
+                'name': p['address'],
+                'address': {
+                    'location_id': str(p['id']),
+                    'lon': p['longitude'],
+                    'lat': p['latitude']
+                }
+            } for p in points[1:-1]  # Skip school start/end points
+        ]
+    }
+
+    try:
+        response = requests.post(
+            f"{current_app.config['GRAPHHOPPER_URL']}/optimize",
+            headers={'Content-Type': 'application/json'},
+            json=payload
+        )
+        
+        if response.status_code != 200:
+            print(f"GraphHopper error: {response.text}")
+            return None
+
+        route_data = response.json()
+        
+        # Process and return optimized route
+        optimized_route = []
+        running_bags = 0
+        
+        for i, activity in enumerate(route_data['routes'][0]['activities']):
+            point_id = activity['location_id']
+            
+            if point_id in ('school_start', 'school_end'):
+                # Add school points
+                optimized_route.append({
+                    'id': point_id,
+                    'customer_name': 'Hayfield Secondary',
+                    'address': settings.school_address,
+                    'latitude': float(settings.school_latitude),
+                    'longitude': float(settings.school_longitude),
+                    'stop_number': i,
+                    'is_school': True,
+                    'distance_from_prev': activity.get('driving_distance', 0) / 1000.0,  # Convert to km
+                    'running_bag_total': running_bags
+                })
+            else:
+                # Add delivery points
+                order = next(o for o in orders if str(o.id) == point_id)
+                running_bags += order.bags_ordered
+                
+                optimized_route.append({
+                    'id': order.id,
+                    'customer_name': order.customer_name,
+                    'address': order.address,
+                    'bags_ordered': order.bags_ordered,
+                    'mulch_type': order.mulch_type,
+                    'latitude': float(order.latitude),
+                    'longitude': float(order.longitude),
+                    'delivery_id': order.id,  # Include delivery ID for unassigning
+                    'is_assigned': True  # Flag to indicate this is an assigned order
+                })
+
+        return optimized_route
+
+    except Exception as e:
+        print(f"Error optimizing route: {str(e)}")
+        return None
 

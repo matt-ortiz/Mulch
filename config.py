@@ -27,3 +27,6 @@ class Config:
     # Force template reloading
     TEMPLATES_AUTO_RELOAD = True
     SEND_FILE_MAX_AGE_DEFAULT = 0
+
+    # Add to existing Config class
+    GRAPHHOPPER_URL = 'http://10.7.10.20:8989'
