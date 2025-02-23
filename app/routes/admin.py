@@ -2020,19 +2020,12 @@ def optimize_with_graphhopper(orders, settings):
         'points_encoded': False
     }
 
-    print("\nSending request to GraphHopper:")
-    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/route")
-    print(f"Payload: {json.dumps(payload, indent=2)}")
-
     try:
         response = requests.post(
             f"{current_app.config['GRAPHHOPPER_URL']}/route",
             headers={'Content-Type': 'application/json'},
             json=payload
         )
-        
-        print(f"\nGraphHopper Response (Status {response.status_code}):")
-        print(response.text[:1000] + "..." if len(response.text) > 1000 else response.text)
         
         if response.status_code != 200:
             print(f"GraphHopper error: {response.text}")
@@ -2049,6 +2042,9 @@ def optimize_with_graphhopper(orders, settings):
         print(f"\nRoute Summary:")
         print(f"Total Distance: {path['distance']/1000:.2f} km")
         print(f"Total Time: {path['time']/1000/60:.2f} minutes")
+        
+        # Get the coordinates of the actual route
+        route_coordinates = path['points']['coordinates']
         
         # Process and return optimized route
         optimized_route = []
@@ -2067,24 +2063,22 @@ def optimize_with_graphhopper(orders, settings):
             'running_bag_total': 0
         })
         
-        # Get the actual order of points from GraphHopper's response
-        waypoints = path.get('snapped_waypoints', {}).get('coordinates', [])
-        if not waypoints:
-            print("Error: No waypoints in response")
-            return None
-            
-        print("\nProcessing stops in optimized order:")
-        # Process only the actual stops (not the path points)
-        # Skip first and last points (school)
-        for i, point in enumerate(waypoints[1:-1], 1):
-            # Find the order closest to this point
+        # Process delivery points (skip first and last which are school)
+        for i, point in enumerate(points[1:-1], 1):
+            # Find the order for this point
             order = min(orders, key=lambda o: haversine_distance(
                 o.latitude, o.longitude,
                 point[1], point[0]  # point is [lng, lat]
             ))
             running_bags += order.bags_ordered
             
-            print(f"Stop {i}: {order.customer_name} ({order.bags_ordered} bags)")
+            # Calculate distance from previous point using route coordinates
+            prev_coords = route_coordinates[i-1]
+            curr_coords = route_coordinates[i]
+            distance = haversine_distance(
+                prev_coords[1], prev_coords[0],  # [lng, lat] to [lat, lng]
+                curr_coords[1], curr_coords[0]
+            )
             
             optimized_route.append({
                 'id': order.id,
@@ -2099,11 +2093,19 @@ def optimize_with_graphhopper(orders, settings):
                 'notes': order.notes,
                 'stop_number': i,
                 'is_school': False,
-                'distance_from_prev': 0,  # We'll calculate this next
+                'distance_from_prev': distance,
                 'running_bag_total': running_bags
             })
         
         # Add school end
+        # Calculate distance from last delivery to school
+        last_coords = route_coordinates[-2]  # Second to last point
+        school_coords = route_coordinates[-1]  # Last point
+        final_distance = haversine_distance(
+            last_coords[1], last_coords[0],
+            school_coords[1], school_coords[0]
+        )
+        
         optimized_route.append({
             'id': 'school_end',
             'customer_name': 'Hayfield Secondary',
@@ -2112,23 +2114,17 @@ def optimize_with_graphhopper(orders, settings):
             'longitude': float(settings.school_longitude),
             'stop_number': len(orders) + 1,
             'is_school': True,
-            'distance_from_prev': 0,
+            'distance_from_prev': final_distance,
             'running_bag_total': running_bags
         })
-
-        # Calculate distances between stops
-        if len(path['distances']) >= len(optimized_route) - 1:
-            print("\nCalculating distances between stops:")
-            for i in range(1, len(optimized_route)):
-                distance = path['distances'][i-1] / 1000.0  # Convert to km
-                optimized_route[i]['distance_from_prev'] = distance
-                print(f"Distance to stop {i}: {distance:.2f} km")
 
         print(f"\nOptimization complete. Total stops: {len(optimized_route)}")
         return optimized_route
 
     except Exception as e:
         print(f"\nError optimizing route: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 @admin_routes.route('/update-school-location', methods=['POST'])
