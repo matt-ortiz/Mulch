@@ -1900,6 +1900,8 @@ def view_routes():
         Order.longitude.isnot(None)
     ).all()
     
+    print(f"\nFound {len(orders)} orders with valid coordinates")
+    
     # Group orders by mulch type
     orders_by_mulch = {}
     for order in orders:
@@ -1907,143 +1909,31 @@ def view_routes():
             orders_by_mulch[order.mulch_type] = []
         orders_by_mulch[order.mulch_type].append(order)
     
-    # Optimize routes for each mulch type
+    # Print debug info for each mulch type
     for mulch_type, mulch_orders in orders_by_mulch.items():
+        print(f"\nProcessing {mulch_type}: {len(mulch_orders)} orders")
+        
+        # Try GraphHopper optimization
+        print(f"Sending request to GraphHopper...")
         optimized_route = optimize_with_graphhopper(mulch_orders, settings)
         
         if optimized_route:
+            print(f"Successfully got optimized route with {len(optimized_route)} stops")
             clustered_data['routes'][mulch_type] = [optimized_route]
             
             # Update stats
             delivery_stops = [stop for stop in optimized_route if not stop.get('is_school')]
             clustered_data['stats']['mulch_types'][mulch_type] = {
                 'total_stops': len(delivery_stops),
-                'total_bags': sum(stop['bags_ordered'] for stop in delivery_stops)
+                'total_bags': sum(stop.get('bags_ordered', 0) for stop in delivery_stops)
             }
             clustered_data['stats']['total_orders'] += len(delivery_stops)
         else:
-            # Fallback to current nearest-neighbor method if GraphHopper fails
-            print(f"Falling back to nearest-neighbor for {mulch_type}")
-            # Use existing nearest-neighbor code as fallback
-            current_point = (settings.school_latitude, settings.school_longitude)
-            route_orders = []
-            remaining = mulch_orders.copy()
-            
-            while remaining:
-                next_order = min(remaining, key=lambda x: calculate_distance(
-                    current_point[0], current_point[1],
-                    x.latitude, x.longitude
-                ))
-                route_orders.append(next_order)
-                current_point = (next_order.latitude, next_order.longitude)
-                remaining.remove(next_order)
-            
-            # Convert to same format as GraphHopper output
-            serialized_route = []
-            running_bags = 0
-            
-            # Add school start
-            serialized_route.append({
-                'id': 'school_start',
-                'customer_name': 'Hayfield Secondary',
-                'address': settings.school_address,
-                'latitude': float(settings.school_latitude),
-                'longitude': float(settings.school_longitude),
-                'stop_number': 0,
-                'is_school': True,
-                'distance_from_prev': 0,
-                'running_bag_total': 0
-            })
-            
-            # Add delivery stops
-            for i, order in enumerate(route_orders, 1):
-                running_bags += order.bags_ordered
-                serialized_route.append({
-                    'id': order.id,
-                    'customer_name': order.customer_name,
-                    'address': order.address,
-                    'latitude': float(order.latitude),
-                    'longitude': float(order.longitude),
-                    'bags_ordered': order.bags_ordered,
-                    'mulch_type': order.mulch_type,
-                    'phone': order.phone,
-                    'preferred_contact': order.preferred_contact,
-                    'notes': order.notes,
-                    'stop_number': i,
-                    'is_school': False,
-                    'distance_from_prev': calculate_distance(
-                        serialized_route[-1]['latitude'],
-                        serialized_route[-1]['longitude'],
-                        order.latitude,
-                        order.longitude
-                    ),
-                    'running_bag_total': running_bags
-                })
-            
-            # Add school end
-            serialized_route.append({
-                'id': 'school_end',
-                'customer_name': 'Hayfield Secondary',
-                'address': settings.school_address,
-                'latitude': float(settings.school_latitude),
-                'longitude': float(settings.school_longitude),
-                'stop_number': len(route_orders) + 1,
-                'is_school': True,
-                'distance_from_prev': calculate_distance(
-                    route_orders[-1].latitude,
-                    route_orders[-1].longitude,
-                    settings.school_latitude,
-                    settings.school_longitude
-                ),
-                'running_bag_total': running_bags
-            })
-            
-            clustered_data['routes'][mulch_type] = [serialized_route]
-            
-            # Update stats
-            delivery_stops = [stop for stop in serialized_route if not stop.get('is_school')]
-            clustered_data['stats']['mulch_types'][mulch_type] = {
-                'total_stops': len(delivery_stops),
-                'total_bags': sum(stop['bags_ordered'] for stop in delivery_stops)
-            }
-            clustered_data['stats']['total_orders'] += len(delivery_stops)
+            print(f"Failed to get route from GraphHopper")
+            flash(f'Failed to optimize route for {mulch_type}', 'error')
+            return redirect(url_for('admin.dashboard'))
 
     return render_template('admin/view_routes.html', clustered_data=clustered_data)
-
-@admin_routes.route('/update-school-location', methods=['POST'])
-@login_required
-def update_school_location():
-    if not current_user.is_admin:
-        return jsonify({'error': 'Unauthorized'}), 403
-        
-    data = request.get_json()
-    address = data.get('address')
-    lat = data.get('latitude')
-    lng = data.get('longitude')
-    
-    if not all([address, lat, lng]):
-        return jsonify({'error': 'Missing required fields'}), 400
-    
-    try:
-        settings = Settings.query.first()
-        if not settings:
-            settings = Settings()
-            db.session.add(settings)
-        
-        settings.school_address = address
-        settings.school_latitude = float(lat)
-        settings.school_longitude = float(lng)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'School location updated successfully'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 def optimize_with_graphhopper(orders, settings):
     """Optimize route using local GraphHopper instance"""
@@ -2101,12 +1991,21 @@ def optimize_with_graphhopper(orders, settings):
         ]
     }
 
+    # Debug print the request
+    print("\nSending to GraphHopper:")
+    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/optimize")
+    print(f"Payload: {json.dumps(payload, indent=2)}")
+
     try:
         response = requests.post(
             f"{current_app.config['GRAPHHOPPER_URL']}/optimize",
             headers={'Content-Type': 'application/json'},
             json=payload
         )
+        
+        # Debug print the response
+        print(f"\nGraphHopper Response (Status {response.status_code}):")
+        print(response.text[:500] + "..." if len(response.text) > 500 else response.text)
         
         if response.status_code != 200:
             print(f"GraphHopper error: {response.text}")
@@ -2143,17 +2042,57 @@ def optimize_with_graphhopper(orders, settings):
                     'id': order.id,
                     'customer_name': order.customer_name,
                     'address': order.address,
-                    'bags_ordered': order.bags_ordered,
-                    'mulch_type': order.mulch_type,
                     'latitude': float(order.latitude),
                     'longitude': float(order.longitude),
-                    'delivery_id': order.id,  # Include delivery ID for unassigning
-                    'is_assigned': True  # Flag to indicate this is an assigned order
+                    'bags_ordered': order.bags_ordered,
+                    'mulch_type': order.mulch_type,
+                    'phone': order.phone,
+                    'preferred_contact': order.preferred_contact,
+                    'notes': order.notes,
+                    'stop_number': i,
+                    'is_school': False,
+                    'distance_from_prev': activity.get('driving_distance', 0) / 1000.0,  # Convert to km
+                    'running_bag_total': running_bags
                 })
 
         return optimized_route
 
     except Exception as e:
-        print(f"Error optimizing route: {str(e)}")
+        print(f"\nError optimizing route: {str(e)}")
         return None
+
+@admin_routes.route('/update-school-location', methods=['POST'])
+@login_required
+def update_school_location():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    data = request.get_json()
+    address = data.get('address')
+    lat = data.get('latitude')
+    lng = data.get('longitude')
+    
+    if not all([address, lat, lng]):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    try:
+        settings = Settings.query.first()
+        if not settings:
+            settings = Settings()
+            db.session.add(settings)
+        
+        settings.school_address = address
+        settings.school_latitude = float(lat)
+        settings.school_longitude = float(lng)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'School location updated successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
