@@ -1973,21 +1973,12 @@ def optimize_with_graphhopper(orders, settings):
         'points_encoded': False
     }
 
-    # Debug print the request
-    print("\nSending to GraphHopper:")
-    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/route")
-    print(f"Payload: {json.dumps(payload, indent=2)}")
-
     try:
         response = requests.post(
             f"{current_app.config['GRAPHHOPPER_URL']}/route",
             headers={'Content-Type': 'application/json'},
             json=payload
         )
-        
-        # Debug print the response
-        print(f"\nGraphHopper Response (Status {response.status_code}):")
-        print(response.text[:500] + "..." if len(response.text) > 500 else response.text)
         
         if response.status_code != 200:
             print(f"GraphHopper error: {response.text}")
@@ -2012,12 +2003,13 @@ def optimize_with_graphhopper(orders, settings):
             'running_bag_total': 0
         })
         
-        # Add delivery points
-        for i, point in enumerate(route_data['paths'][0]['points']['coordinates'][1:-1], 1):
-            # Find the order closest to this point
+        # Process only the actual stops (not the path points)
+        # Skip first and last points (school)
+        for i, point in enumerate(points[1:-1], 1):
+            # Find the order for this stop
             order = min(orders, key=lambda o: haversine_distance(
-                point[1], point[0],  # GraphHopper returns [lng, lat]
-                o.latitude, o.longitude
+                o.latitude, o.longitude,
+                point[1], point[0]  # point is [lng, lat]
             ))
             running_bags += order.bags_ordered
             
@@ -2034,7 +2026,7 @@ def optimize_with_graphhopper(orders, settings):
                 'notes': order.notes,
                 'stop_number': i,
                 'is_school': False,
-                'distance_from_prev': route_data['paths'][0]['distance'] / 1000.0,  # Convert to km
+                'distance_from_prev': 0,  # We'll calculate this next
                 'running_bag_total': running_bags
             })
         
@@ -2047,9 +2039,18 @@ def optimize_with_graphhopper(orders, settings):
             'longitude': float(settings.school_longitude),
             'stop_number': len(orders) + 1,
             'is_school': True,
-            'distance_from_prev': route_data['paths'][0]['distance'] / 1000.0,  # Convert to km
+            'distance_from_prev': 0,
             'running_bag_total': running_bags
         })
+
+        # Calculate distances between stops using the path data
+        if 'paths' in route_data and len(route_data['paths']) > 0:
+            total_distance = route_data['paths'][0]['distance'] / 1000.0  # Convert to km
+            # Distribute distance roughly between stops
+            if len(optimized_route) > 2:  # If we have stops between start and end
+                distance_per_stop = total_distance / (len(optimized_route) - 1)
+                for i in range(1, len(optimized_route)):
+                    optimized_route[i]['distance_from_prev'] = distance_per_stop
 
         return optimized_route
 
