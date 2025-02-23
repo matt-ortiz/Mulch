@@ -1894,8 +1894,10 @@ def view_routes():
         }
     }
     
-    # Get all orders with valid coordinates
-    orders = Order.query.filter(
+    # Get all orders with valid coordinates, and eagerly load the delivery relationship
+    orders = Order.query.options(
+        joinedload(Order.delivery)
+    ).filter(
         Order.latitude.isnot(None),
         Order.longitude.isnot(None)
     ).all()
