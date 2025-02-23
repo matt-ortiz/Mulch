@@ -2010,8 +2010,8 @@ def optimize_with_graphhopper(orders, settings):
                 order.latitude, order.longitude
             )
             
-            # If order is within 2 miles (about 3.2 km), add to cluster
-            if distance <= 2:
+            # If order is within 0.5 miles (about 0.8 km), add to cluster
+            if distance <= 0.5:  # Changed from 2 miles to 0.5 miles
                 current_cluster.append(order)
                 remaining_orders.pop(i)
                 # Update center (simple average)
@@ -2023,6 +2023,10 @@ def optimize_with_graphhopper(orders, settings):
         clusters.append(current_cluster)
     
     print(f"\nCreated {len(clusters)} clusters of nearby orders")
+    for idx, cluster in enumerate(clusters):
+        print(f"Cluster {idx + 1}: {len(cluster)} orders")
+        for order in cluster:
+            print(f"  - {order.customer_name}: {order.address}")
     
     # Now optimize each cluster
     optimized_routes = []
