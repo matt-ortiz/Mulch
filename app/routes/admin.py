@@ -1915,6 +1915,9 @@ def view_routes():
 def optimize_with_graphhopper(orders, settings):
     """Optimize route using local GraphHopper instance"""
     
+    print("\n=== GraphHopper Optimization Details ===")
+    print(f"Optimizing route for {len(orders)} orders")
+    
     # Create list of points starting with school
     points = [
         [settings.school_longitude, settings.school_latitude]  # GraphHopper expects [lng, lat]
@@ -1926,6 +1929,7 @@ def optimize_with_graphhopper(orders, settings):
             float(order.longitude),  # GraphHopper expects [lng, lat]
             float(order.latitude)
         ])
+        print(f"Added point for {order.customer_name}: [{order.longitude}, {order.latitude}]")
 
     # Add school as end point
     points.append([
@@ -1943,6 +1947,10 @@ def optimize_with_graphhopper(orders, settings):
         'points_encoded': False
     }
 
+    print("\nSending request to GraphHopper:")
+    print(f"URL: {current_app.config['GRAPHHOPPER_URL']}/route")
+    print(f"Payload: {json.dumps(payload, indent=2)}")
+
     try:
         response = requests.post(
             f"{current_app.config['GRAPHHOPPER_URL']}/route",
@@ -1950,11 +1958,24 @@ def optimize_with_graphhopper(orders, settings):
             json=payload
         )
         
+        print(f"\nGraphHopper Response (Status {response.status_code}):")
+        print(response.text[:1000] + "..." if len(response.text) > 1000 else response.text)
+        
         if response.status_code != 200:
             print(f"GraphHopper error: {response.text}")
             return None
 
         route_data = response.json()
+        
+        # Validate route data
+        if 'paths' not in route_data or not route_data['paths']:
+            print("Error: No paths in response")
+            return None
+            
+        path = route_data['paths'][0]
+        print(f"\nRoute Summary:")
+        print(f"Total Distance: {path['distance']/1000:.2f} km")
+        print(f"Total Time: {path['time']/1000/60:.2f} minutes")
         
         # Process and return optimized route
         optimized_route = []
@@ -1973,15 +1994,24 @@ def optimize_with_graphhopper(orders, settings):
             'running_bag_total': 0
         })
         
+        # Get the actual order of points from GraphHopper's response
+        waypoints = path.get('snapped_waypoints', {}).get('coordinates', [])
+        if not waypoints:
+            print("Error: No waypoints in response")
+            return None
+            
+        print("\nProcessing stops in optimized order:")
         # Process only the actual stops (not the path points)
         # Skip first and last points (school)
-        for i, point in enumerate(points[1:-1], 1):
-            # Find the order for this stop
+        for i, point in enumerate(waypoints[1:-1], 1):
+            # Find the order closest to this point
             order = min(orders, key=lambda o: haversine_distance(
                 o.latitude, o.longitude,
                 point[1], point[0]  # point is [lng, lat]
             ))
             running_bags += order.bags_ordered
+            
+            print(f"Stop {i}: {order.customer_name} ({order.bags_ordered} bags)")
             
             optimized_route.append({
                 'id': order.id,
@@ -2013,15 +2043,15 @@ def optimize_with_graphhopper(orders, settings):
             'running_bag_total': running_bags
         })
 
-        # Calculate distances between stops using the path data
-        if 'paths' in route_data and len(route_data['paths']) > 0:
-            total_distance = route_data['paths'][0]['distance'] / 1000.0  # Convert to km
-            # Distribute distance roughly between stops
-            if len(optimized_route) > 2:  # If we have stops between start and end
-                distance_per_stop = total_distance / (len(optimized_route) - 1)
-                for i in range(1, len(optimized_route)):
-                    optimized_route[i]['distance_from_prev'] = distance_per_stop
+        # Calculate distances between stops
+        if len(path['distances']) >= len(optimized_route) - 1:
+            print("\nCalculating distances between stops:")
+            for i in range(1, len(optimized_route)):
+                distance = path['distances'][i-1] / 1000.0  # Convert to km
+                optimized_route[i]['distance_from_prev'] = distance
+                print(f"Distance to stop {i}: {distance:.2f} km")
 
+        print(f"\nOptimization complete. Total stops: {len(optimized_route)}")
         return optimized_route
 
     except Exception as e:
