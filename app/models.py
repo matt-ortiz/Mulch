@@ -40,9 +40,14 @@ class Order(db.Model):
     longitude = db.Column(db.Float)
     notes = db.Column(db.Text)
     preferred_contact = db.Column(db.String(20))  # 'text' or 'call'
-    delivery = db.relationship('Delivery', backref='order', lazy=True, uselist=False)
+    deliveries = db.relationship('Delivery', backref='order', lazy='dynamic')
     year = db.Column(db.Integer, default=lambda: datetime.now().year)  # Add year field
     is_pickup = db.Column(db.Boolean, default=False)  # Add this field
+
+    @property
+    def delivery(self):
+        """Get the most recent delivery for this order"""
+        return self.deliveries.order_by(Delivery.assigned_at.desc()).first()
 
 class Delivery(db.Model):
     id = db.Column(db.Integer, primary_key=True)

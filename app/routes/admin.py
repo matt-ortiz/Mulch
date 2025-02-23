@@ -1891,13 +1891,12 @@ def view_routes():
         'stats': {
             'total_orders': 0,
             'mulch_types': {}
-        }
+        },
+        'errors': []  # Add error tracking
     }
     
-    # Get all orders with valid coordinates, and eagerly load the delivery relationship
-    orders = Order.query.options(
-        joinedload(Order.delivery)
-    ).filter(
+    # Get all orders with valid coordinates
+    orders = Order.query.filter(
         Order.latitude.isnot(None),
         Order.longitude.isnot(None)
     ).all()
@@ -1931,11 +1930,17 @@ def view_routes():
             }
             clustered_data['stats']['total_orders'] += len(delivery_stops)
         else:
-            print(f"Failed to get route from GraphHopper")
-            flash(f'Failed to optimize route for {mulch_type}', 'error')
-            return redirect(url_for('admin.dashboard'))
+            error_msg = f'Failed to optimize route for {mulch_type}'
+            print(error_msg)
+            clustered_data['errors'].append(error_msg)
+            flash(error_msg, 'error')
 
-    return render_template('admin/view_routes.html', clustered_data=clustered_data)
+    # If we have any routes, show them even if some failed
+    if clustered_data['routes']:
+        return render_template('admin/view_routes.html', clustered_data=clustered_data)
+    else:
+        flash('No routes could be optimized', 'error')
+        return render_template('admin/view_routes.html', clustered_data=clustered_data)
 
 def optimize_with_graphhopper(orders, settings):
     """Optimize route using local GraphHopper instance"""

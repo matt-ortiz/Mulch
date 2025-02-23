@@ -57,6 +57,17 @@
 {% endblock %}
 
 {% block content %}
+{% if clustered_data.errors %}
+<div class="alert alert-danger">
+    <h4>Errors occurred while optimizing routes:</h4>
+    <ul>
+        {% for error in clustered_data.errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <div class="route-controls">
     <h3>Delivery Routes</h3>
     {% for mulch_type in clustered_data.routes.keys() %}
