@@ -24,12 +24,14 @@ def create_app(config_class=Config):
     from app.routes.driver import driver_bp
     from app.routes.main import main
     from app.routes.admin import admin_routes
+    from app.routes.loading import loading
     from app.cli import create_admin, reset_admin_password, check_admin
 
     app.register_blueprint(auth)
     app.register_blueprint(driver_bp)
     app.register_blueprint(main)
     app.register_blueprint(admin_routes, url_prefix='/admin')
+    app.register_blueprint(loading)
     
     app.cli.add_command(create_admin)
     app.cli.add_command(reset_admin_password)

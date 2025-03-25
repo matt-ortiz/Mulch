@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mulch Loading Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <!-- Custom styles -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-card-header i {
+            padding: 6px;
+            border-radius: 6px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        /* Progress Section */
+        .progress-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .progress-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .progress-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .progress-title h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .progress-stats {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+        }
+
+        /* Mulch type colors */
+        .mulch-black {
+            background: #1e293b !important;
+            color: white !important;
+        }
+
+        .mulch-red {
+            background: #8B4513 !important;
+            color: white !important;
+        }
+
+        .mulch-brown {
+            background: #DEB887 !important;
+            color: black !important;
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        .driver-order-details span{
+            opacity: 0.5;
+        }
+
+        /* Prevent pull-to-refresh on mobile */
+        html, body {
+            overscroll-behavior-y: contain;
+        }
+
+        /* Smooth transitions */
+        * {
+            transition: all 0.2s ease;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                padding: 0 8px;
+            }
+            .stat-card {
+                padding: 12px;
+            }
+            .stat-value {
+                font-size: 16px;
+            }
+            .stat-label {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="fixed top-0 left-0 right-0 bg-blue-500 h-1 transform scale-x-0 transition-transform duration-300"></div>
+
+    <div class="min-h-screen py-4 sm:py-6">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+            <!-- Header with refresh time -->
+            <div class="mb-6 sm:mb-8">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Loading Dashboard</h1>
+                        <p class="mt-1 sm:mt-2 text-sm text-gray-600">Real-time mulch delivery assignments</p>
+                    </div>
+                    <div class="text-right text-sm text-gray-500">
+                        <p id="last-updated"></p>
+                        <p class="text-xs">Auto-refreshes every minute</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section">
+                <div class="progress-header">
+                    <div class="progress-title">
+                        <h2>Delivery Progress</h2>
+                        <span class="progress-stats">{{ status_counts.assigned }} Assigned • {{ status_counts.delivered }} Completed</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ '%.1f'|format(progress) }}%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="package" style="background: #e0f2fe; color: #0369a1;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="total_orders">{{ total_orders }}</div>
+                            <div class="stat-label">Total Orders</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="truck" style="background: #dcfce7; color: #166534;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="total_bags">{{ total_bags }}</div>
+                            <div class="stat-label">Total Bags</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="check-circle" style="background: #f0fdf4; color: #15803d;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="completed_orders">{{ status_counts.delivered }}</div>
+                            <div class="stat-label">Completed Orders</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="package-check" style="background: #f0fdf4; color: #15803d;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="completed_bags">{{ completed_bags }}</div>
+                            <div class="stat-label">Delivered Bags</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="package-x" style="background: #fef2f2; color: #b91c1c;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="remaining_bags">{{ remaining_bags }}</div>
+                            <div class="stat-label">Remaining Bags</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <i data-lucide="users" style="background: #f0f7ff; color: #1e40af;"></i>
+                        <div>
+                            <div class="stat-value" data-stat="active_drivers">{{ drivers_with_orders|length }}</div>
+                            <div class="stat-label">Active Drivers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Driver Summaries -->
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                {% for driver, order_count, total_bags, black_orders, red_orders, brown_orders, black_bags, red_bags, brown_bags in drivers_with_orders %}
+                <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div class="p-4 sm:p-6">
+                        <!-- Driver Header -->
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg sm:text-xl font-bold text-gray-900">{{ driver.first_name }}</h3>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-800">
+                                {{ order_count }} orders | {{ total_bags }} bags
+                            </span>
+                        </div>
+
+                        <!-- Mulch Type Summary -->
+                        <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+                            {% if brown_orders > 0 %}
+                            <!-- Brown Mulch Summary -->
+                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-brown">
+                                <p class="text-sm font-medium">Brown</p>
+                                <p class="text-lg sm:text-xl font-bold mt-1">{{ brown_bags }}</p>
+                                <p class="text-xs opacity-75">{{ brown_orders }} orders</p>
+                            </div>
+                            {% endif %}
+
+                            {% if black_orders > 0 %}
+                            <!-- Black Mulch Summary -->
+                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-black">
+                                <p class="text-sm font-medium">Black</p>
+                                <p class="text-lg sm:text-xl font-bold mt-1">{{ black_bags }}</p>
+                                <p class="text-xs opacity-75">{{ black_orders }} orders</p>
+                            </div>
+                            {% endif %}
+
+                            {% if red_orders > 0 %}
+                            <!-- Red Mulch Summary -->
+                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-red">
+                                <p class="text-sm font-medium">Red</p>
+                                <p class="text-lg sm:text-xl font-bold mt-1">{{ red_bags }}</p>
+                                <p class="text-xs opacity-75">{{ red_orders }} orders</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Order Details -->
+                        <div class="mt-4 sm:mt-6">
+                            <h4 class="text-sm font-semibold text-gray-900 mb-2 sm:mb-3">Order Details</h4>
+                            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                {% for order in driver_orders[driver.id] %}
+                                <div class="flex items-center justify-between p-2 sm:p-3 rounded-lg
+                                    {% if order.mulch_type == 'Black Shredded Hardwood' %}mulch-black
+                                    {% elif order.mulch_type == 'Red Shredded Hardwood' %}mulch-red
+                                    {% else %}mulch-brown{% endif %}">
+                                    <div class="driver-order-details">
+                                        <p class="text-sm font-medium">Order #{{ order.id }} <span>{{ order.customer_name.split(',')[0] if ',' in order.customer_name else order.customer_name.split()[-1] }}</span></p>
+                                        <p class="text-xs opacity-75">
+                                            {{ order.mulch_type.replace(' Shredded Hardwood', '') }} Mulch
+                                        </p>
+                                    </div>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                        {% if order.mulch_type == 'Black Shredded Hardwood' %}bg-gray-700 text-white
+                                        {% elif order.mulch_type == 'Red Shredded Hardwood' %}bg-[#8B4513] text-white
+                                        {% else %}bg-[#DEB887] text-black{% endif %}">
+                                        {{ order.bags_ordered }} bags
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Initialize Lucide icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+
+    <!-- Enhanced refresh functionality -->
+    <script>
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = 
+                `Last updated: ${now.toLocaleTimeString()}`;
+        }
+
+        function showLoadingIndicator() {
+            const indicator = document.getElementById('loading-indicator');
+            indicator.style.transform = 'scaleX(1)';
+        }
+
+        function refresh() {
+            showLoadingIndicator();
+            updateLastUpdated();
+            window.location.reload();
+        }
+
+        // Initial update
+        updateLastUpdated();
+
+        // Set up auto-refresh
+        setInterval(refresh, 60000); // Refresh every minute
+
+        // Add pull-to-refresh for mobile
+        let touchStart = 0;
+        document.addEventListener('touchstart', e => {
+            touchStart = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchmove', e => {
+            const touchEnd = e.touches[0].clientY;
+            const diff = touchEnd - touchStart;
+            
+            if (diff > 100 && window.scrollY === 0) {
+                refresh();
+            }
+        });
+    </script>
+</body>
+</html> 
