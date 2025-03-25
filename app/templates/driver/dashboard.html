@@ -216,14 +216,94 @@
         font-weight: 600;
         color: #475569;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
+        gap: 12px;
+        background: white;
+        margin: 12px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-title {
+        font-size: 16px;
+        color: #1e293b;
+        margin-bottom: 4px;
     }
 
     .section-count {
         font-weight: 500;
-        background: #f1f5f9;
-        padding: 6px 12px;
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .count-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .count-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .count-divider {
+        width: 1px;
+        height: 20px;
+        background: #e2e8f0;
+    }
+
+    .section-count i {
+        width: 18px;
+        height: 18px;
+        color: #64748b;
+    }
+
+    .mulch-breakdown {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 8px;
+        width: 100%;
+        padding: 0 2px;
+    }
+
+    .mulch-type {
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    .mulch-type i {
+        width: 16px;
+        height: 16px;
+    }
+
+    .mulch-black {
+        background: #1e293b;
+        color: white;
+    }
+
+    .mulch-red {
+        background: #991b1b;
+        color: white;
+    }
+
+    .mulch-shredded, .mulch-natural {
+        background: #DEB887;
+        color: #000;
     }
 
     .completed-section {
@@ -364,11 +444,30 @@
     {% else %}
     <div class="orders-section">
         <div class="section-header">
-            Active Orders
-            <span class="section-count">
-                {{ deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length }} orders,
-                {{ deliveries|selectattr('status', 'in', ['pending', 'assigned'])|sum(attribute='order.bags_ordered') }} bags
-            </span>
+            <div class="section-title">Active Orders</div>
+            <div class="section-count">
+                <div class="count-group">
+                    <div class="count-item">
+                        <i data-lucide="clipboard-list"></i>
+                        {{ deliveries|selectattr('status', 'in', ['pending', 'assigned'])|list|length }} orders
+                    </div>
+                    <div class="count-divider"></div>
+                    <div class="count-item">
+                        <i data-lucide="package"></i>
+                        {{ total_bags }} bags total
+                    </div>
+                </div>
+            </div>
+            {% if mulch_totals %}
+            <div class="mulch-breakdown">
+                {% for mulch_type, bags in mulch_totals.items() %}
+                    <span class="mulch-type mulch-{{ mulch_type.lower().split()[0] }}">
+                        <i data-lucide="package"></i>
+                        {{ bags }} {{ mulch_type }}
+                    </span>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% for delivery in deliveries %}
             {% if delivery.status in ['pending', 'assigned'] %}

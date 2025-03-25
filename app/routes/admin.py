@@ -112,6 +112,157 @@ def auto_assign():
     db.session.commit()
     return jsonify({'success': True})
 
+def sanitize_name(name):
+    """
+    Clean up name data while preserving valid special characters.
+    Handles: O'Name, spaces, case, commas
+    """
+    if not name:
+        return ""
+    
+    # Handle "Last, First" format
+    if "," in name:
+        parts = [p.strip() for p in name.split(",")]
+        name = " ".join(reversed(parts))
+    
+    # Remove multiple spaces
+    name = " ".join(name.split())
+    
+    # Remove any non-printable characters while preserving valid special chars
+    valid_special_chars = "'`-."
+    name = "".join(c for c in name if c.isalnum() or c.isspace() or c in valid_special_chars)
+    
+    return name.strip()
+
+def sanitize_phone(phone):
+    """
+    Standardize phone numbers to pure digits.
+    Input examples: 
+    - (703) 971-7192
+    - 703.971.7192
+    - 703 971 7192
+    - 703-971-7192
+    Returns: 7039717192
+    """
+    if not phone:
+        return ""
+    
+    # Remove common separators and get only digits
+    digits = "".join(c for c in phone if c.isdigit())
+    
+    # Validate length (10 digits for US numbers)
+    if len(digits) == 10:
+        return digits
+    elif len(digits) == 11 and digits.startswith('1'):
+        return digits[1:]  # Remove leading 1
+    elif len(digits) == 7:
+        return "703" + digits  # Add default area code for local numbers
+    else:
+        return digits  # Return what we have, let validation handle it
+
+def sanitize_address(address):
+    """
+    Clean up and standardize address format.
+    Handles:
+    - Line breaks
+    - Extra spaces
+    - Periods in street types
+    - Missing city/state/zip
+    """
+    if not address:
+        return ""
+    
+    # Replace line breaks with spaces
+    address = address.replace('\n', ' ').replace('\r', ' ')
+    
+    # Standardize common abbreviations
+    replacements = {
+        'Apt.': 'Apt',
+        'St.': 'Street',
+        'Rd.': 'Road',
+        'Dr.': 'Drive',
+        'Ln.': 'Lane',
+        'Ave.': 'Avenue',
+        'Ct.': 'Court',
+        'Cir.': 'Circle',
+        'Blvd.': 'Boulevard',
+        'Pkwy.': 'Parkway',
+        'Sq.': 'Square',
+        'Pl.': 'Place',
+        'Ter.': 'Terrace'
+    }
+    
+    # Clean up the address
+    address = ' '.join(address.split())  # Remove multiple spaces
+    
+    # Replace abbreviations
+    for old, new in replacements.items():
+        address = address.replace(old, new)
+        # Also try without the period
+        address = address.replace(old[:-1], new)
+    
+    # Add VA and zip if missing (common in the dataset)
+    if 'Alexandria' in address and 'VA' not in address.upper():
+        address = address.replace('Alexandria', 'Alexandria, VA')
+    if 'Lorton' in address and 'VA' not in address.upper():
+        address = address.replace('Lorton', 'Lorton, VA')
+    
+    # Add zip code if missing for common areas
+    if 'Alexandria, VA' in address and not any(zip_code in address for zip_code in ['22315', '22309', '22306']):
+        address += ' 22315'  # Default zip for Hayfield area
+    if 'Lorton, VA' in address and '22079' not in address:
+        address += ' 22079'
+    
+    return address.strip()
+
+def parse_bags_ordered(bags_str):
+    """
+    Parse and validate the number of bags ordered.
+    Handles:
+    - Numbers with text (e.g., "30 bags")
+    - Decimal points
+    - Text numbers
+    """
+    if not bags_str:
+        return 0
+        
+    # Remove non-numeric characters except decimal point
+    nums = ''.join(c for c in bags_str if c.isdigit() or c == '.')
+    
+    try:
+        # Convert to float first to handle decimal points
+        bags = float(nums)
+        # Convert to int, rounding up
+        return int(bags + 0.5)
+    except (ValueError, TypeError):
+        return 0
+
+def sanitize_notes(notes):
+    """
+    Clean up delivery notes while preserving important information.
+    Handles:
+    - Line breaks
+    - Extra spaces
+    - Common text patterns
+    """
+    if not notes:
+        return ""
+    
+    # Replace line breaks with spaces
+    notes = notes.replace('\n', ' ').replace('\r', ' ')
+    
+    # Remove multiple spaces
+    notes = ' '.join(notes.split())
+    
+    # Standardize common phrases
+    notes = notes.lower()
+    if any(word in notes for word in ['pick-up', 'pickup', 'pick up']):
+        notes = 'Pick-up: ' + notes
+    elif 'delivery' not in notes.lower():
+        notes = 'Delivery: ' + notes
+    
+    return notes.strip()
+
 @admin_routes.route('/import-orders', methods=['POST'])
 @login_required
 def import_orders():
@@ -136,164 +287,181 @@ def import_orders():
         return redirect(url_for('admin.settings'))
 
     if file and file.filename.endswith('.csv'):
-        csv_file = TextIOWrapper(file, encoding='utf-8')
-        csv_reader = csv.DictReader(csv_file)
-        
-        # CSV field mappings
-        FIELD_MAPPINGS = {
-            'customer_name': 'First Name, Last Name',
-            'email': 'Email Address',
-            'phone': 'Cell Phone',
-            'address': 'Delivery Address',
-            'bags_ordered': 'Total Amount of Bags of Mulch',
-            'mulch_type': 'Color of Mulch',
-            'notes': 'Pickup or delivery instructions (If picking up, please type in Pick-up). If delivery, type Delivery, and any extra information, please add that too)',
-            'preferred_contact': 'Please choose your preferred type of communication on delivery day'
-        }
-        
-        # Initialize counters and logs
-        stats = {
-            'total_rows': 0,
-            'skipped_empty': 0,
-            'invalid_bags': 0,
-            'successful': 0,
-            'errors': 0
-        }
-        error_logs = []
-        success_logs = []
-        
-        # First, delete existing orders for this year
         try:
-            deleted_count = Order.query.filter_by(year=year).delete()
-            db.session.commit()
-            success_logs.append(f"Cleared {deleted_count} existing orders for year {year}")
-        except Exception as e:
-            error_logs.append(f"Error clearing orders: {str(e)}")
-            db.session.rollback()
-            flash('\n'.join(error_logs), 'error')
-            return redirect(url_for('admin.settings'))
-        
-        for row in csv_reader:
-            stats['total_rows'] += 1
+            # Try to detect the CSV encoding
+            raw_data = file.read()
+            file.seek(0)  # Reset file pointer
+            
             try:
-                # Skip empty rows
-                if not row.get(FIELD_MAPPINGS['customer_name']):
-                    stats['skipped_empty'] += 1
-                    continue
-
-                # Clean and convert bags to integer
+                # Try UTF-8 first
+                decoded = raw_data.decode('utf-8')
+                encoding = 'utf-8'
+            except UnicodeDecodeError:
                 try:
-                    bags_str = row[FIELD_MAPPINGS['bags_ordered']]
-                    bags_num = ''.join(filter(lambda x: x.isdigit() or x == '.', bags_str.split()[0]))
-                    bags = int(float(bags_num))
-                    
-                    if bags <= 0:
-                        raise ValueError("Bag count must be positive")
-                        
-                except (ValueError, TypeError, IndexError) as e:
-                    stats['invalid_bags'] += 1
-                    error_logs.append(f"Invalid bag count '{bags_str}' for {row[FIELD_MAPPINGS['customer_name']]}: {str(e)}")
-                    continue
-
-                # Process delivery/pickup status and address
-                notes = row.get(FIELD_MAPPINGS['notes'], '').strip()
-                address = row.get(FIELD_MAPPINGS['address'], '').strip()
-                
-                is_pickup = any(keyword in notes.lower() for keyword in ['pick-up', 'pickup', 'pick up'])
-                
-                if is_pickup:
-                    # For pickup orders, use school address
-                    address = current_app.config['SCHOOL_ADDRESS']
-                elif address:
-                    # Clean and complete address if needed
-                    has_zip = any(zip_code in address for zip_code in ['22315', '22309', '22079', '22041', '22305'])
-                    has_state = 'VA' in address.upper() or 'VIRGINIA' in address.upper()
-                    
-                    if ',' not in address and not has_state and not has_zip:
-                        # No comma, no state, no zip - assume local address
-                        address = f"{address}, Alexandria, VA 22315"
-                    elif has_state and not has_zip:
-                        # Has state but no zip
-                        address = f"{address} 22315"
-                else:
-                    # No address provided
-                    if is_pickup:
-                        address = current_app.config['SCHOOL_ADDRESS']
-                    else:
-                        stats['errors'] += 1
-                        error_logs.append(f"No address provided for {row[FIELD_MAPPINGS['customer_name']]}")
+                    # Try UTF-8-SIG (with BOM)
+                    decoded = raw_data.decode('utf-8-sig')
+                    encoding = 'utf-8-sig'
+                except UnicodeDecodeError:
+                    # Fall back to Windows-1252
+                    decoded = raw_data.decode('cp1252')
+                    encoding = 'cp1252'
+            
+            csv_file = TextIOWrapper(file, encoding=encoding)
+            csv_reader = csv.DictReader(csv_file)
+            
+            # CSV field mappings
+            FIELD_MAPPINGS = {
+                'customer_name': 'First Name, Last Name',
+                'email': 'Email Address',
+                'phone': 'Cell Phone',
+                'address': 'Delivery Address',
+                'bags_ordered': 'Total Amount of Bags of Mulch',
+                'mulch_type': 'Color of Mulch',
+                'notes': 'Pickup or delivery instructions (If picking up, please type in Pick-up). If delivery, type Delivery, and any extra information, please add that too)',
+                'preferred_contact': 'Please choose your preferred type of communication on delivery day'
+            }
+            
+            # Initialize counters and logs
+            stats = {
+                'total_rows': 0,
+                'skipped_empty': 0,
+                'invalid_bags': 0,
+                'successful': 0,
+                'errors': 0,
+                'warnings': 0
+            }
+            error_logs = []
+            warning_logs = []
+            success_logs = []
+            
+            # First, delete existing orders for this year
+            try:
+                deleted_count = Order.query.filter_by(year=year).delete()
+                db.session.commit()
+                success_logs.append(f"Cleared {deleted_count} existing orders for year {year}")
+            except Exception as e:
+                error_logs.append(f"Error clearing orders: {str(e)}")
+                db.session.rollback()
+                flash('\n'.join(error_logs), 'error')
+                return redirect(url_for('admin.settings'))
+            
+            for row in csv_reader:
+                stats['total_rows'] += 1
+                try:
+                    # Skip empty rows
+                    if not row.get(FIELD_MAPPINGS['customer_name']):
+                        stats['skipped_empty'] += 1
                         continue
 
-                # Get and standardize the contact preference
-                contact_pref = row[FIELD_MAPPINGS['preferred_contact']].lower()
-                if 'text' in contact_pref:
-                    preferred_contact = 'text'
-                elif 'call' in contact_pref:
-                    preferred_contact = 'call'
-                elif 'email' in contact_pref:
-                    preferred_contact = 'email'
-                else:
-                    preferred_contact = 'text'  # default to text
-                
-                # Create new order - remove is_pickup from initial creation
-                order = Order(
-                    customer_name=row[FIELD_MAPPINGS['customer_name']].strip(),
-                    email=row.get(FIELD_MAPPINGS['email'], '').strip(),
-                    address=address,  # Use processed address
-                    phone=row.get(FIELD_MAPPINGS['phone'], '').strip(),
-                    bags_ordered=bags,
-                    mulch_type=row[FIELD_MAPPINGS['mulch_type']].strip(),
-                    notes=notes,
-                    preferred_contact=preferred_contact,
-                    latitude=None,
-                    longitude=None,
-                    year=year
-                )
-                
-                # Set is_pickup separately to handle case where column might not exist yet
-                try:
-                    order.is_pickup = is_pickup
-                except:
-                    # Column doesn't exist yet, skip setting this field
-                    pass
-                
-                db.session.add(order)
-                stats['successful'] += 1
-                success_logs.append(f"Added {'pickup' if is_pickup else 'delivery'} order: {order.customer_name} - {bags} bags")
+                    # Clean and validate data
+                    customer_name = sanitize_name(row[FIELD_MAPPINGS['customer_name']])
+                    if not customer_name:
+                        stats['errors'] += 1
+                        error_logs.append(f"Invalid customer name in row {stats['total_rows']}")
+                        continue
 
+                    # Parse and validate bags ordered
+                    bags_str = row[FIELD_MAPPINGS['bags_ordered']]
+                    bags = parse_bags_ordered(bags_str)
+                    if bags <= 0:
+                        stats['invalid_bags'] += 1
+                        error_logs.append(f"Invalid bag count '{bags_str}' for {customer_name}")
+                        continue
+
+                    # Clean other fields
+                    email = row.get(FIELD_MAPPINGS['email'], '').strip().lower()
+                    phone = sanitize_phone(row.get(FIELD_MAPPINGS['phone'], ''))
+                    address = sanitize_address(row.get(FIELD_MAPPINGS['address'], ''))
+                    notes = sanitize_notes(row.get(FIELD_MAPPINGS['notes'], ''))
+                    mulch_type = row[FIELD_MAPPINGS['mulch_type']].strip()
+                    
+                    # Determine if pickup or delivery
+                    is_pickup = any(keyword in notes.lower() for keyword in ['pick-up', 'pickup', 'pick up'])
+                    
+                    # Handle address for pickup orders
+                    if is_pickup:
+                        address = current_app.config['SCHOOL_ADDRESS']
+                    elif not address:
+                        stats['warnings'] += 1
+                        warning_logs.append(f"No address provided for {customer_name}")
+                        if not is_pickup:
+                            stats['errors'] += 1
+                            error_logs.append(f"Delivery order for {customer_name} has no address")
+                            continue
+
+                    # Get and standardize contact preference
+                    contact_pref = row[FIELD_MAPPINGS['preferred_contact']].lower()
+                    if 'text' in contact_pref:
+                        preferred_contact = 'text'
+                    elif 'call' in contact_pref:
+                        preferred_contact = 'call'
+                    elif 'email' in contact_pref:
+                        preferred_contact = 'email'
+                    else:
+                        preferred_contact = 'text'  # default to text
+                    
+                    # Create new order
+                    order = Order(
+                        customer_name=customer_name,
+                        email=email,
+                        address=address,
+                        phone=phone,
+                        bags_ordered=bags,
+                        mulch_type=mulch_type,
+                        notes=notes,
+                        preferred_contact=preferred_contact,
+                        latitude=None,
+                        longitude=None,
+                        year=year,
+                        is_pickup=is_pickup
+                    )
+                    
+                    db.session.add(order)
+                    stats['successful'] += 1
+                    success_logs.append(f"Added {'pickup' if is_pickup else 'delivery'} order: {order.customer_name} - {bags} bags")
+
+                except Exception as e:
+                    stats['errors'] += 1
+                    error_logs.append(f"Error processing {row.get(FIELD_MAPPINGS['customer_name'], 'Unknown')}: {str(e)}")
+                    continue
+
+            try:
+                db.session.commit()
+                
+                # Prepare summary message
+                summary = [
+                    f"Import Summary for {year}:",
+                    f"Total rows processed: {stats['total_rows']}",
+                    f"Successfully imported: {stats['successful']}",
+                    f"Empty rows skipped: {stats['skipped_empty']}",
+                    f"Invalid bag counts: {stats['invalid_bags']}",
+                    f"Warnings: {stats['warnings']}",
+                    f"Errors: {stats['errors']}"
+                ]
+                
+                if warning_logs:
+                    summary.append("\nWarnings:")
+                    summary.extend(warning_logs)
+                
+                if error_logs:
+                    summary.append("\nErrors:")
+                    summary.extend(error_logs)
+                
+                if success_logs:
+                    summary.append("\nSuccessful imports:")
+                    summary.extend(success_logs)
+                
+                flash('\n'.join(summary), 'info')
+                return redirect(url_for('admin.settings'))
+                
             except Exception as e:
-                stats['errors'] += 1
-                error_logs.append(f"Error processing {row.get(FIELD_MAPPINGS['customer_name'], 'Unknown')}: {str(e)}")
-                continue
-
-        try:
-            db.session.commit()
-            
-            # Prepare summary message
-            summary = [
-                f"Import Summary for {year}:",
-                f"Total rows processed: {stats['total_rows']}",
-                f"Successfully imported: {stats['successful']}",
-                f"Empty rows skipped: {stats['skipped_empty']}",
-                f"Invalid bag counts: {stats['invalid_bags']}",
-                f"Errors encountered: {stats['errors']}"
-            ]
-            
-            if error_logs:
-                summary.append("\nErrors:")
-                summary.extend(error_logs)
-            
-            if success_logs:
-                summary.append("\nSuccessful imports:")
-                summary.extend(success_logs)
-            
-            flash('\n'.join(summary), 'info')
-            return redirect(url_for('admin.settings'))
-            
+                db.session.rollback()
+                error_logs.append(f"Database error: {str(e)}")
+                flash('\n'.join(error_logs), 'error')
+                return redirect(url_for('admin.settings'))
+                
         except Exception as e:
-            db.session.rollback()
-            error_logs.append(f"Database error: {str(e)}")
-            flash('\n'.join(error_logs), 'error')
+            flash(f'Error processing CSV file: {str(e)}', 'error')
             return redirect(url_for('admin.settings'))
 
     flash('Invalid file type', 'error')
@@ -577,7 +745,7 @@ def manage_addresses():
     
     # Get settings for school location and far threshold
     settings = Settings.query.first()
-    if not settings:
+    if not settings or not settings.school_latitude or not settings.school_longitude:
         flash('Please configure school location in settings first', 'error')
         return redirect(url_for('admin.settings'))
     
@@ -600,9 +768,9 @@ def manage_addresses():
     far_deliveries_count = 0
     
     if orders_with_coords:
-        # Use settings for school location instead of config
-        school_lat = settings.school_latitude
-        school_lng = settings.school_longitude
+        # Use settings for school location
+        school_lat = float(settings.school_latitude)
+        school_lng = float(settings.school_longitude)
         
         for order in orders_with_coords:
             distance = calculate_distance(school_lat, school_lng, 
@@ -626,9 +794,9 @@ def manage_addresses():
                          far_deliveries_count=far_deliveries_count,
                          far_threshold=far_threshold_mi,  # Pass threshold to template
                          school_location={
-                             'lat': school_lat,
-                             'lng': school_lng,
-                             'address': current_app.config['SCHOOL_ADDRESS']
+                             'lat': float(settings.school_latitude),
+                             'lng': float(settings.school_longitude),
+                             'address': settings.school_address or 'School Location'
                          })
 
 @admin_routes.route('/update-address/<int:order_id>', methods=['POST'])
@@ -1457,15 +1625,33 @@ def import_issues():
 def build_load():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
-    
+
+    # Get settings for school location
     settings = Settings.query.first()
-    drivers = User.query.filter(User.is_admin.is_(False)).all()
-    orders = Order.query.all()
-    
-    return render_template('admin/build_load.html',
-                         drivers=drivers,
-                         orders=orders,
-                         settings=settings)  # Pass settings to template
+    if not settings:
+        flash('Please configure school location in settings first', 'error')
+        return redirect(url_for('admin.settings'))
+
+    # Get all orders that are not delivered
+    orders = Order.query\
+        .outerjoin(Delivery)\
+        .filter(
+            (Delivery.status.is_(None)) |  # No delivery record
+            (Delivery.status == 'pending') |  # Pending delivery
+            (Delivery.status == 'assigned')  # Assigned but not delivered
+        )\
+        .order_by(Order.id.asc())\
+        .all()
+
+    # Get available drivers
+    drivers = User.query.filter_by(is_admin=False).all()
+
+    return render_template(
+        'admin/build_load.html',
+        orders=orders,
+        drivers=drivers,
+        settings=settings
+    )
 
 @admin_routes.route('/driver-updates')
 @login_required
@@ -1563,86 +1749,27 @@ def print_cards():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
-    # Get settings for school location
-    settings = Settings.query.first()
-    if not settings:
-        flash('Please configure school location in settings first', 'error')
-        return redirect(url_for('admin.settings'))
-
-    # Get active routes
-    active_routes = Route.query.filter_by(is_active=True).all()
+    # Get all orders sorted by ID
+    orders = Order.query.order_by(Order.id.asc()).all()
     
-    # Structure data for template
-    clustered_orders = {}
+    # Calculate stats
     stats = {
-        'total_orders': 0,
-        'mulch_counts': {},
-        'unmatched_addresses': 0
+        'mulch_counts': {}
     }
     
-    for route in active_routes:
-        if route.mulch_type not in clustered_orders:
-            clustered_orders[route.mulch_type] = []
-        
-        # Get stops in order
-        stops = (RouteStop.query
-                .filter_by(route_id=route.id)
-                .order_by(RouteStop.stop_number)
-                .all())
-        
-        # Create ordered list of orders and calculate distances
-        ordered_stops = []
-        for stop in stops:
-            order = stop.order
-            # Calculate distance from school
-            order.distance_from_school = haversine_distance(
-                settings.school_latitude,
-                settings.school_longitude,
-                order.latitude,
-                order.longitude
-            )
-            ordered_stops.append(order)
-            
-        clustered_orders[route.mulch_type].append(ordered_stops)
-        
-        # Update stats
-        stats['total_orders'] += len(ordered_stops)
-        stats['mulch_counts'][route.mulch_type] = {
-            'count': len(ordered_stops),
-            'bags': route.total_bags,
-            'clusters': 1
-        }
-    
-    # Get orders without routes and calculate their distances
-    unrouted_orders = (Order.query
-                      .filter(~Order.route_stops.any())
-                      .all())
-    
-    # Calculate distances for unrouted orders
-    for order in unrouted_orders:
-        if order.latitude and order.longitude:
-            order.distance_from_school = haversine_distance(
-                settings.school_latitude,
-                settings.school_longitude,
-                order.latitude,
-                order.longitude
-            )
-        else:
-            order.distance_from_school = None
-    
-    stats['unmatched_addresses'] = len(unrouted_orders)
-    
-    # Group unrouted orders by mulch type
-    unrouted_by_mulch = {}
-    for order in unrouted_orders:
-        if order.mulch_type not in unrouted_by_mulch:
-            unrouted_by_mulch[order.mulch_type] = []
-        unrouted_by_mulch[order.mulch_type].append(order)
+    # Calculate stats for each mulch type
+    for order in orders:
+        if order.mulch_type not in stats['mulch_counts']:
+            stats['mulch_counts'][order.mulch_type] = {
+                'count': 0,
+                'bags': 0
+            }
+        stats['mulch_counts'][order.mulch_type]['count'] += 1
+        stats['mulch_counts'][order.mulch_type]['bags'] += order.bags_ordered
     
     return render_template(
         'admin/print_cards.html',
-        clustered_orders=clustered_orders,
-        orders_no_coords=unrouted_by_mulch,
+        orders=orders,
         stats=stats
     )
 
@@ -2061,4 +2188,176 @@ def update_school_location():
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_routes.route('/delivery-status/<int:order_id>')
+@login_required
+def get_delivery_status(order_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    order = Order.query.get_or_404(order_id)
+    delivery = order.delivery  # This uses the property we defined in the Order model
+    
+    if delivery:
+        return jsonify({
+            'status': delivery.status,
+            'delivered_at': delivery.delivered_at.isoformat() if delivery.delivered_at else None
+        })
+    else:
+        return jsonify({
+            'status': 'pending',
+            'delivered_at': None
+        })
+
+@admin_routes.route('/toggle-delivery/<int:order_id>', methods=['POST'])
+@login_required
+def toggle_delivery_status(order_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    order = Order.query.get_or_404(order_id)
+    delivery = order.delivery
+    
+    if not delivery:
+        # Create a new delivery record if none exists
+        delivery = Delivery(
+            order=order,
+            status='delivered',
+            delivered_at=datetime.utcnow()
+        )
+        db.session.add(delivery)
+    else:
+        # Toggle the status
+        if delivery.status == 'delivered':
+            delivery.status = 'pending'
+            delivery.delivered_at = None
+        else:
+            delivery.status = 'delivered'
+            delivery.delivered_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'status': delivery.status,
+            'delivered_at': delivery.delivered_at.isoformat() if delivery.delivered_at else None
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_routes.route('/view-orders')
+@login_required
+def view_orders():
+    if not current_user.is_admin:
+        return redirect(url_for('main.index'))
+    
+    # Get query parameters
+    search = request.args.get('search', '').strip()
+    status = request.args.get('status', 'all')
+    mulch_type = request.args.get('mulch_type', 'all')
+    delivery_type = request.args.get('delivery_type', 'all')
+    year = request.args.get('year', datetime.now().year)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    # Base query
+    query = Order.query
+    
+    # Apply filters
+    if search:
+        query = query.filter(
+            (Order.id.cast(db.String).ilike(f'%{search}%')) |
+            (Order.customer_name.ilike(f'%{search}%')) |
+            (Order.address.ilike(f'%{search}%'))
+        )
+    
+    if status != 'all':
+        if status == 'pending':
+            query = query.filter(~Order.deliveries.any())
+        else:
+            query = query.join(Delivery).filter(Delivery.status == status)
+    
+    if mulch_type != 'all':
+        query = query.filter(Order.mulch_type == mulch_type)
+    
+    if delivery_type != 'all':
+        query = query.filter(Order.is_pickup == (delivery_type == 'pickup'))
+    
+    if year:
+        query = query.filter(Order.year == year)
+    
+    # Get unique mulch types for filter dropdown
+    mulch_types = db.session.query(Order.mulch_type.distinct()).all()
+    mulch_types = [t[0] for t in mulch_types]
+    
+    # Get total count before pagination
+    total_count = query.count()
+    
+    # Add sorting
+    sort_by = request.args.get('sort', 'id')
+    sort_dir = request.args.get('dir', 'asc')
+    
+    if sort_by == 'status':
+        if sort_dir == 'asc':
+            query = query.outerjoin(Delivery).order_by(
+                Delivery.status.is_(None).desc(),
+                Delivery.status.asc(),
+                Order.id.asc()
+            )
+        else:
+            query = query.outerjoin(Delivery).order_by(
+                Delivery.status.is_(None).asc(),
+                Delivery.status.desc(),
+                Order.id.desc()
+            )
+    else:
+        sort_column = getattr(Order, sort_by, Order.id)
+        if sort_dir == 'desc':
+            sort_column = sort_column.desc()
+        query = query.order_by(sort_column)
+    
+    # Paginate results
+    orders = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    return render_template(
+        'admin/view_orders.html',
+        orders=orders,
+        search=search,
+        status=status,
+        mulch_type=mulch_type,
+        delivery_type=delivery_type,
+        year=year,
+        mulch_types=mulch_types,
+        total_count=total_count,
+        sort_by=sort_by,
+        sort_dir=sort_dir
+    )
+
+@admin_routes.route('/unassign-driver/<int:order_id>', methods=['POST'])
+@login_required
+def unassign_driver(order_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        # Find the delivery for this order
+        delivery = Delivery.query.filter_by(order_id=order_id).first()
+        
+        if not delivery:
+            return jsonify({'error': 'No delivery found for this order'}), 404
+            
+        if delivery.status == 'delivered':
+            return jsonify({'error': 'Cannot unassign a delivered order'}), 400
+            
+        # Delete the delivery record
+        db.session.delete(delivery)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error unassigning driver: {str(e)}")
         return jsonify({'error': str(e)}), 500

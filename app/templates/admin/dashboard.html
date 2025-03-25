@@ -384,7 +384,7 @@
             <div class="stat-card-header">
                 <i data-lucide="check-circle" style="background: #f0fdf4; color: #15803d;"></i>
                 <div>
-                    <div class="stat-value" data-stat="completed_bags">{{ completed_bags }}</div>
+                    <div class="stat-value" data-stat="completed_orders">{{ status_counts.delivered }}</div>
                     <div class="stat-label">Completed Orders</div>
                 </div>
             </div>
@@ -524,6 +524,7 @@ function getMulchColor(mulchType) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
     let map;
     let markers = [];
     let currentDriverId = null;
@@ -605,81 +606,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial load - show all undelivered orders
     updateMarkers();
-
-    // Add to your existing JavaScript
-    function startDashboardUpdates() {
-        function updateDashboard() {
-            fetch('/admin/dashboard-updates')
-                .then(response => response.json())
-                .then(data => {
-                    // Update main stats
-                    document.querySelector('.stat-value[data-stat="total_orders"]').textContent = data.stats.total_orders;
-                    document.querySelector('.stat-value[data-stat="total_bags"]').textContent = data.stats.total_bags;
-                    document.querySelector('.stat-value[data-stat="completed_bags"]').textContent = data.stats.completed_bags;
-                    document.querySelector('.stat-value[data-stat="remaining_bags"]').textContent = data.stats.remaining_bags;
-                    
-                    // Update progress bar
-                    const progressFill = document.querySelector('.progress-fill');
-                    progressFill.style.width = `${data.stats.progress}%`;
-                    
-                    // Update status counts
-                    document.querySelector('.progress-stats').textContent = 
-                        `${data.stats.status_counts.assigned} Assigned • ${data.stats.status_counts.delivered} Completed`;
-                    
-                    // Update recent deliveries table with animation
-                    const tbody = document.querySelector('.orders-table tbody');
-                    const newHtml = data.recent_deliveries.map(delivery => `
-                        <tr>
-                            <td>${delivery.customer_name}</td>
-                            <td>${delivery.driver_name}</td>
-                            <td>${delivery.delivered_at}</td>
-                        </tr>
-                    `).join('');
-                    
-                    if (tbody.innerHTML !== newHtml) {
-                        tbody.innerHTML = newHtml;
-                        // Add animation class to new rows
-                        tbody.querySelectorAll('tr').forEach(row => {
-                            row.classList.add('new-entry');
-                            // Remove the class after animation
-                            setTimeout(() => {
-                                row.classList.remove('new-entry');
-                            }, 1000);
-                        });
-                    }
-                    
-                    // Update driver cards
-                    data.driver_stats.forEach(driver => {
-                        const card = document.querySelector(`.driver-card[data-driver-id="${driver.id}"]`);
-                        if (card) {
-                            // Update stats
-                            card.querySelector('[data-stat="delivered_bags"]').textContent = 
-                                `${driver.delivered_bags} bags delivered`;
-                            card.querySelector('[data-stat="completed_count"]').textContent = 
-                                `${driver.completed_count} completed`;
-                            card.querySelector('[data-stat="assigned_count"]').textContent = 
-                                `${driver.assigned_count} assigned`;
-                            
-                            // Update progress bar
-                            const progressBar = card.querySelector('.progress-fill');
-                            progressBar.style.width = `${driver.progress}%`;
-                            
-                            // Update progress stats
-                            card.querySelector('.progress-stats').textContent = 
-                                `${driver.delivered_bags} / ${driver.total_bags} bags delivered`;
-                        }
-                    });
-                })
-                .catch(error => console.error('Error updating dashboard:', error));
-        }
-
-        // Update every 5 seconds
-        updateDashboard(); // Initial update
-        setInterval(updateDashboard, 5000);
-    }
-
-    // Add to your existing DOMContentLoaded listener
-    startDashboardUpdates();
 });
 </script>
 {% endblock %} 

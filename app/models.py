@@ -9,7 +9,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(64), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=True)  # Make it nullable
+    password_hash = db.Column(db.String(256), nullable=True)  # Increased length to 256
     vehicle_capacity = db.Column(db.Integer)  # Number of bags that fit in their vehicle
     is_admin = db.Column(db.Boolean, default=False)
     deliveries = db.relationship('Delivery', backref='driver', lazy=True)

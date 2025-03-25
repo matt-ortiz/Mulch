@@ -767,9 +767,10 @@ function initMap() {
     }).addTo(map).bindPopup("{{ settings.school_address }}");
     {% endif %}
     
-    // Add markers for all orders
+    // Add markers for all orders that aren't delivered
     {% for order in orders %}
     {% if order.latitude and order.longitude %}
+    {% set is_assigned = order.deliveries|selectattr('status', 'equalto', 'assigned')|list|length > 0 %}
     addMarker(
         {{ order.latitude }},
         {{ order.longitude }},
@@ -777,7 +778,8 @@ function initMap() {
         "{{ order.customer_name }}",
         "{{ order.address }}",
         {{ order.bags_ordered }},
-        "{{ order.mulch_type }}"
+        "{{ order.mulch_type }}",
+        {{ 'true' if is_assigned else 'false' }}
     );
     {% endif %}
     {% endfor %}
@@ -789,25 +791,37 @@ function initMap() {
     }
 }
 
-function addMarker(lat, lng, orderId, customerName, address, bags, mulchType) {
+function addMarker(lat, lng, orderId, customerName, address, bags, mulchType, isAssigned) {
+    const markerColor = isAssigned ? '#64748b' : getMulchColor(mulchType); // Gray for assigned
+    
     const marker = L.circleMarker([lat, lng], {
-        radius: 12,  // Increased radius to fit number
-        fillColor: getMulchColor(mulchType),
-        color: '#1e40af',
+        radius: 12,
+        fillColor: markerColor,
+        color: isAssigned ? '#475569' : '#1e40af',
         weight: 2,
         opacity: 1,
-        fillOpacity: 0.8
+        fillOpacity: isAssigned ? 0.6 : 0.8
     }).addTo(map);
     
-    // Add bag count as a permanent label
-    const label = L.tooltip({
-        permanent: true,
-        direction: 'center',
-        className: 'circle-label',
-        offset: [0, 0]
-    });
+    // Add bag count and assigned icon if applicable
+    const labelContent = isAssigned ? 
+        `<div style="position: relative;">
+            ${bags}
+            <i data-lucide="user-check" style="
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                width: 14px;
+                height: 14px;
+                color: #22c55e;
+                background: white;
+                border-radius: 50%;
+                padding: 1px;
+            "></i>
+        </div>` : 
+        bags.toString();
     
-    marker.bindTooltip(bags.toString(), {
+    marker.bindTooltip(labelContent, {
         permanent: true,
         direction: 'center',
         className: 'circle-label'
@@ -820,11 +834,13 @@ function addMarker(lat, lng, orderId, customerName, address, bags, mulchType) {
         <strong>${customerName}</strong><br>
         ${address}<br>
         ${bags} bags - ${mulchType}
+        ${isAssigned ? '<br><span style="color: #22c55e;"><i data-lucide="user-check"></i> Assigned</span>' : ''}
     `);
     
     marker.on('mouseover', () => {
         if (!marker.isPopupOpen()) {
             marker.openPopup(popup);
+            lucide.createIcons(); // Refresh icons when popup opens
         }
     });
     
@@ -834,13 +850,16 @@ function addMarker(lat, lng, orderId, customerName, address, bags, mulchType) {
         }
     });
     
-    marker.on('click', () => toggleOrderSelection({
-        id: orderId,
-        customerName,
-        address,
-        bags,
-        mulchType
-    }));
+    // Only add click handler if not assigned
+    if (!isAssigned) {
+        marker.on('click', () => toggleOrderSelection({
+            id: orderId,
+            customerName,
+            address,
+            bags,
+            mulchType
+        }));
+    }
     
     markers.push({
         id: orderId,
@@ -849,7 +868,8 @@ function addMarker(lat, lng, orderId, customerName, address, bags, mulchType) {
             customerName,
             address,
             bags,
-            mulchType
+            mulchType,
+            isAssigned
         }
     });
 }
@@ -1155,35 +1175,9 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// Replace the SSE code with this polling function
-function startDriverUpdates() {
-    function pollDriverStatus() {
-        fetch('/admin/driver-updates')
-            .then(response => response.json())
-            .then(updates => {
-                updates.forEach(update => {
-                    const card = document.querySelector(`.driver-card[data-id="${update.id}"]`);
-                    if (card) {
-                        if (update.is_busy) {
-                            card.classList.add('has-pending');
-                        } else {
-                            card.classList.remove('has-pending');
-                        }
-                    }
-                });
-            })
-            .catch(error => console.error('Error polling driver status:', error));
-    }
-
-    // Poll every 5 seconds
-    pollDriverStatus(); // Initial call
-    setInterval(pollDriverStatus, 5000);
-}
-
 // Update the DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', function() {
     initMap();
-    startDriverUpdates();
 });
 </script>
 {% endblock %} 

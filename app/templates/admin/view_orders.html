@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .container-fluid {
+        padding: 24px;
+    }
+
+    .page-header {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0;
+    }
+
+    .filters-bar {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 16px;
+        margin-bottom: 24px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .filter-select {
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: white;
+        min-width: 150px;
+        font-size: 14px;
+    }
+
+    .orders-table {
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .orders-table th {
+        background: #f8fafc;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 500;
+        color: #64748b;
+        border-bottom: 2px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .orders-table th:first-child {
+        border-top-left-radius: 8px;
+    }
+
+    .orders-table th:last-child {
+        border-top-right-radius: 8px;
+    }
+
+    .orders-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
+    }
+
+    .orders-table tr:last-child td:first-child {
+        border-bottom-left-radius: 8px;
+    }
+
+    .orders-table tr:last-child td:last-child {
+        border-bottom-right-radius: 8px;
+    }
+
+    .orders-table tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-delivered {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-pending {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-assigned {
+        background: #fef9c3;
+        color: #854d0e;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-success {
+        background: #22c55e;
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #f1f5f9;
+        color: #334155;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 24px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 12px 16px;
+    }
+
+    .page-info {
+        color: #64748b;
+        font-size: 14px;
+    }
+
+    .page-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .customer-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .customer-name {
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+    .customer-contact {
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .contact-icon {
+        margin-right: 4px;
+    }
+
+    .order-id {
+        font-family: monospace;
+        color: #64748b;
+        font-size: 12px;
+    }
+
+    .mulch-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .bag-count {
+        font-weight: 500;
+        color: #1e293b;
+    }
+
+    .mulch-type {
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .pickup-badge {
+        background: #e0e7ff;
+        color: #4338ca;
+    }
+
+    .sort-header {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .sort-header:hover {
+        background: #f1f5f9;
+    }
+
+    .sort-icon {
+        display: inline-block;
+        margin-left: 4px;
+        transition: transform 0.2s;
+    }
+
+    .sort-asc .sort-icon {
+        transform: rotate(180deg);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Orders</h1>
+            <div class="header-actions">
+                <span class="total-count">{{ total_count }} orders</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="filters-bar">
+        <input type="text" 
+               class="search-input" 
+               placeholder="Search by Order ID, Name, or Address..."
+               value="{{ search }}"
+               onchange="updateFilters()">
+
+        <select class="filter-select" onchange="updateFilters()" name="mulch_type">
+            <option value="all" {% if mulch_type == 'all' %}selected{% endif %}>All Mulch Types</option>
+            {% for type in mulch_types %}
+            <option value="{{ type }}" {% if mulch_type == type %}selected{% endif %}>{{ type }}</option>
+            {% endfor %}
+        </select>
+
+        <select class="filter-select" onchange="updateFilters()" name="delivery_type">
+            <option value="all" {% if delivery_type == 'all' %}selected{% endif %}>All Types</option>
+            <option value="delivery" {% if delivery_type == 'delivery' %}selected{% endif %}>Delivery</option>
+            <option value="pickup" {% if delivery_type == 'pickup' %}selected{% endif %}>Pickup</option>
+        </select>
+
+        <select class="filter-select" onchange="updateFilters()" name="status">
+            <option value="all" {% if status=='all' %}selected{% endif %}>All Status</option>
+            <option value="pending" {% if status=='pending' %}selected{% endif %}>Pending</option>
+            <option value="assigned" {% if status=='assigned' %}selected{% endif %}>Assigned</option>
+            <option value="delivered" {% if status=='delivered' %}selected{% endif %}>Delivered</option>
+        </select>
+        
+
+        <select class="filter-select" onchange="updateFilters()" name="year">
+            {% for y in range(2025, 2023, -1) %}
+            <option value="{{ y }}" {% if year|int == y or (not year and y == 2025) %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <table class="orders-table">
+        <thead>
+            <tr>
+                <th class="sort-header {% if sort_by == 'id' %}sort-{{ sort_dir }}{% endif %}" 
+                    onclick="updateSort('id')">
+                    Order ID
+                    <span class="sort-icon">▼</span>
+                </th>
+                <th class="sort-header {% if sort_by == 'customer_name' %}sort-{{ sort_dir }}{% endif %}"
+                    onclick="updateSort('customer_name')">
+                    Customer
+                    <span class="sort-icon">▼</span>
+                </th>
+                <th class="sort-header {% if sort_by == 'address' %}sort-{{ sort_dir }}{% endif %}"
+                    onclick="updateSort('address')">
+                    Address
+                    <span class="sort-icon">▼</span>
+                </th>
+                <th>Order Details</th>
+                <th class="sort-header {% if sort_by == 'status' %}sort-{{ sort_dir }}{% endif %}"
+                    onclick="updateSort('status')">
+                    Status
+                    <span class="sort-icon">▼</span>
+                </th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders.items %}
+            <tr>
+                <td>
+                    <span class="order-id">#{{ order.id }}</span>
+                </td>
+                <td>
+                    <div class="customer-info">
+                        <div class="customer-name">{{ order.customer_name }}</div>
+                        {% if order.preferred_contact == 'email' %}
+                        <div class="customer-contact">
+                            <i class="lucide-mail contact-icon"></i>
+                            {{ order.email }}
+                        </div>
+                        {% else %}
+                        <div class="customer-contact">
+                            <i class="lucide-phone contact-icon"></i>
+                            {{ order.phone }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {{ order.address }}
+                    {% if order.is_pickup %}
+                    <span class="status-badge pickup-badge">Pickup</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="mulch-info">
+                        <div class="bag-count">{{ order.bags_ordered }} Bags</div>
+                        <div class="mulch-type">{{ order.mulch_type }}</div>
+                    </div>
+                </td>
+                <td>
+                    {% if order.delivery %}
+                    <span class="status-badge status-{{ order.delivery.status }}">
+                        {{ order.delivery.status|title }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if not order.delivery or order.delivery.status != 'delivered' %}
+                    <button class="btn btn-success" onclick="markDelivered({{ order.id }})">
+                        <i class="lucide-check"></i>
+                        Mark Delivered
+                    </button>
+                    {% if order.delivery and order.delivery.status == 'assigned' %}
+                    <button class="btn btn-secondary" onclick="unassignDriver({{ order.id }})">
+                        <i class="lucide-user-x"></i>
+                        Unassign
+                    </button>
+                    {% endif %}
+                    {% else %}
+                    <button class="btn btn-secondary" onclick="markDelivered({{ order.id }})">
+                        <i class="lucide-x"></i>
+                        Mark Undelivered
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        <div class="page-info">
+            {% set start_item = (orders.page - 1) * orders.per_page + 1 %}
+            {% set end_item = start_item + orders.per_page - 1 %}
+            {% if end_item > total_count %}
+                {% set end_item = total_count %}
+            {% endif %}
+            Showing {{ start_item }} to {{ end_item }} of {{ total_count }} orders
+        </div>
+        <div class="page-controls">
+            {% if orders.has_prev %}
+            <button class="btn btn-secondary" onclick="changePage({{ orders.prev_num }})">
+                Previous
+            </button>
+            {% endif %}
+            
+            {% if orders.has_next %}
+            <button class="btn btn-secondary" onclick="changePage({{ orders.next_num }})">
+                Next
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateFilters() {
+    const searchInput = document.querySelector('.search-input');
+    const statusSelect = document.querySelector('select[name="status"]');
+    const mulchSelect = document.querySelector('select[name="mulch_type"]');
+    const deliverySelect = document.querySelector('select[name="delivery_type"]');
+    const yearSelect = document.querySelector('select[name="year"]');
+    
+    const params = new URLSearchParams(window.location.search);
+    
+    if (searchInput.value) params.set('search', searchInput.value);
+    else params.delete('search');
+    
+    if (statusSelect.value !== 'all') params.set('status', statusSelect.value);
+    else params.delete('status');
+    
+    if (mulchSelect.value !== 'all') params.set('mulch_type', mulchSelect.value);
+    else params.delete('mulch_type');
+    
+    if (deliverySelect.value !== 'all') params.set('delivery_type', deliverySelect.value);
+    else params.delete('delivery_type');
+    
+    if (yearSelect.value) params.set('year', yearSelect.value);
+    else params.delete('year');
+    
+    // Reset to page 1 when filters change
+    params.delete('page');
+    
+    window.location.search = params.toString();
+}
+
+function updateSort(column) {
+    const params = new URLSearchParams(window.location.search);
+    const currentSort = params.get('sort') || 'id';
+    const currentDir = params.get('dir') || 'asc';
+    
+    if (currentSort === column) {
+        params.set('dir', currentDir === 'asc' ? 'desc' : 'asc');
+    } else {
+        params.set('sort', column);
+        params.set('dir', 'asc');
+    }
+    
+    window.location.search = params.toString();
+}
+
+function changePage(page) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', page);
+    window.location.search = params.toString();
+}
+
+function markDelivered(orderId) {
+    fetch(`/admin/toggle-delivery/${orderId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload the page to show updated status
+            window.location.reload();
+        } else {
+            alert('Error updating delivery status');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating delivery status');
+    });
+}
+
+function unassignDriver(orderId) {
+    if (!confirm('Are you sure you want to unassign the driver from this order?')) {
+        return;
+    }
+    
+    fetch(`/admin/unassign-driver/${orderId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error unassigning driver');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error unassigning driver');
+    });
+}
+
+// Add event listener for search input to wait for user to stop typing
+let searchTimeout;
+const searchInput = document.querySelector('.search-input');
+searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(updateFilters, 500);
+});
+</script>
+{% endblock %} 

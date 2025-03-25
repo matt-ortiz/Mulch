@@ -86,10 +86,24 @@
             flex: 0 0 auto;  /* Don't grow or shrink */
         }
 
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
         .customer-name {
             font-size: 1.3em;
             margin-bottom: 8px;
             color: #333;
+        }
+
+        .order-number {
+            font-family: monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #64748b;
         }
 
         .order-header {
@@ -105,8 +119,26 @@
         }
 
         .mulch-type {
-            color: #666;
             font-size: 1em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        /* Color coding for mulch types */
+        .mulch-brown {
+            background-color: #8B4513;
+            color: white;
+        }
+
+        .mulch-black {
+            background-color: #1a1a1a;
+            color: white;
+        }
+
+        .mulch-red {
+            background-color: #8B0000;
+            color: white;
         }
 
         .main-content {
@@ -292,125 +324,56 @@
         </div>
     </div>
 
-    <!-- Group cards by mulch type and clusters -->
-    {% for mulch_type, clusters in clustered_orders.items() %}
-    <div class="mulch-section">
-        <h2 class="mulch-header print-button">{{ mulch_type }} - {{ stats.mulch_counts[mulch_type].count }} orders</h2>
-        
-        {% for cluster in clusters %}
-        <div class="cluster-section">
-            <h3 class="cluster-header print-button">
-                Route Group {{ loop.index }} - {{ cluster|length }} orders
-                ({{ "%.1f"|format(cluster[0].distance_from_school) }} miles from school)
-            </h3>
-            <div class="cards-container">
-                {% for order in cluster %}
-                <div class="card">
-                    <div class="header">
-                        <div class="customer-name">{{ order.customer_name }}</div>
-                        <div class="order-header">
-                            <div class="order-qty">{{ order.bags_ordered }} BAGS</div>
-                            <div class="mulch-type">{{ order.mulch_type }}</div>
+    <!-- All orders in sequence -->
+    <div class="cards-container">
+        {% for order in orders %}
+        <div class="card">
+            <div class="header">
+                <div class="header-content">
+                    <div class="customer-name">{{ order.customer_name }}</div>
+                    <div class="order-number">#{{ order.id }}</div>
+                </div>
+                <div class="order-header">
+                    <div class="order-qty">{{ order.bags_ordered }} BAGS</div>
+                    <div class="mulch-type mulch-{{ order.mulch_type.lower() }}">{{ order.mulch_type }}</div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="contact-row">
+                    <div class="info-section">
+                        <div class="field">
+                            <div class="label">Location</div>
+                            <div class="value address-value">
+                                {{ order.address }}
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <div class="label">Contact</div>
+                            <div class="value">
+                                {{ order.phone[:3] }}-{{ order.phone[3:6] }}-{{ order.phone[6:] }}<br>
+                                <span style="font-size: 0.9em; color: #666;">
+                                    Prefers {{ order.preferred_contact|title }}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="main-content">
-                        <div class="contact-row">
-                            <div class="info-section">
-                                <div class="field">
-                                    <div class="label">Location</div>
-                                    <div class="value address-value">
-                                        {{ order.address }}
-                                    </div>
-                                </div>
-
-                                <div class="field">
-                                    <div class="label">Contact</div>
-                                    <div class="value">
-                                        {{ order.phone[:3] }}-{{ order.phone[3:6] }}-{{ order.phone[6:] }}<br>
-                                        <span style="font-size: 0.9em; color: #666;">
-                                            Prefers {{ order.preferred_contact|title }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="qr-section">
-                                <div id="qr{{ order.id }}" class="qr-code"></div>
-                                <div class="qr-label">Scan for Maps</div>
-                            </div>
-                        </div>
-
-                        <div class="instructions-field">
-                            <div class="label">Instructions</div>
-                            <div class="value instructions-value">{{ order.notes }}</div>
-                        </div>
+                    <div class="qr-section">
+                        <div id="qr{{ order.id }}" class="qr-code"></div>
+                        <div class="qr-label">Scan for Maps</div>
                     </div>
                 </div>
-                {% endfor %}
+
+                <div class="instructions-field">
+                    <div class="label">Instructions</div>
+                    <div class="value instructions-value">{{ order.notes }}</div>
+                </div>
             </div>
         </div>
         {% endfor %}
     </div>
-    {% endfor %}
-
-    <!-- Show orders with no coordinates at the end -->
-    {% if orders_no_coords %}
-    <div class="mulch-section unmatched-section">
-        <h2 class="mulch-header print-button">Orders Needing Address Verification</h2>
-        {% for mulch_type, orders in orders_no_coords.items() %}
-        <div class="cluster-section">
-            <h3 class="cluster-header print-button">{{ mulch_type }} - {{ orders|length }} orders</h3>
-            <div class="cards-container">
-                {% for order in orders %}
-                <div class="card">
-                    <div class="header">
-                        <div class="customer-name">{{ order.customer_name }}</div>
-                        <div class="order-header">
-                            <div class="order-qty">{{ order.bags_ordered }} BAGS</div>
-                            <div class="mulch-type">{{ order.mulch_type }}</div>
-                        </div>
-                    </div>
-
-                    <div class="main-content">
-                        <div class="contact-row">
-                            <div class="info-section">
-                                <div class="field">
-                                    <div class="label">Location</div>
-                                    <div class="value address-value">
-                                        {{ order.address }}
-                                    </div>
-                                </div>
-
-                                <div class="field">
-                                    <div class="label">Contact</div>
-                                    <div class="value">
-                                        {{ order.phone[:3] }}-{{ order.phone[3:6] }}-{{ order.phone[6:] }}<br>
-                                        <span style="font-size: 0.9em; color: #666;">
-                                            Prefers {{ order.preferred_contact|title }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="qr-section">
-                                <div id="qr{{ order.id }}" class="qr-code"></div>
-                                <div class="qr-label">Scan for Maps</div>
-                            </div>
-                        </div>
-
-                        <div class="instructions-field">
-                            <div class="label">Instructions</div>
-                            <div class="value instructions-value">{{ order.notes }}</div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
     <script>
         // Function to create a Google Maps URL
@@ -419,18 +382,20 @@
         }
 
         // Create QR codes for each card using order.id as unique identifier
-        {% for mulch_type, clusters in clustered_orders.items() %}
-            {% for cluster in clusters %}
-                {% for order in cluster %}
-                    new QRCode(document.getElementById('qr{{ order.id }}'), {
-                        text: createMapUrl('{{ order.address|replace("'", "\\'") }}'),
-                        width: 80,
-                        height: 80,
-                        correctLevel: QRCode.CorrectLevel.L
-                    });
-                {% endfor %}
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for order in orders %}
+            try {
+                new QRCode(document.getElementById('qr{{ order.id }}'), {
+                    text: createMapUrl('{{ order.address|replace("'", "\\'")|replace("\n", " ")|replace("\r", " ") }}'),
+                    width: 80,
+                    height: 80,
+                    correctLevel: QRCode.CorrectLevel.L
+                });
+            } catch (e) {
+                console.error('Error creating QR code for order {{ order.id }}:', e);
+            }
             {% endfor %}
-        {% endfor %}
+        });
     </script>
 </body>
 

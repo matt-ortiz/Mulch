@@ -13,7 +13,22 @@ driver_bp = Blueprint('driver', __name__)
 def dashboard():
     # Get assigned deliveries for the current driver
     deliveries = Delivery.query.filter_by(driver_id=current_user.id).all()
-    return render_template('driver/dashboard.html', deliveries=deliveries)
+    
+    # Calculate mulch type totals for active orders
+    mulch_totals = {}
+    total_bags = 0
+    for delivery in deliveries:
+        if delivery.status in ['pending', 'assigned']:
+            mulch_type = delivery.order.mulch_type.split('(')[0].strip()  # Clean up mulch type name
+            if mulch_type not in mulch_totals:
+                mulch_totals[mulch_type] = 0
+            mulch_totals[mulch_type] += delivery.order.bags_ordered
+            total_bags += delivery.order.bags_ordered
+    
+    return render_template('driver/dashboard.html', 
+                         deliveries=deliveries,
+                         mulch_totals=mulch_totals,
+                         total_bags=total_bags)
 
 @driver_bp.route('/delivery/<int:delivery_id>/complete', methods=['POST'])
 @login_required

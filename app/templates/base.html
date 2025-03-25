@@ -275,9 +275,9 @@
                 <span>Dashboard</span>
             </a></li>
             
-            <li><a href="{{ url_for('admin.view_map') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.view_map' }}">
-                <i data-lucide="map"></i>
-                <span>Order Map</span>
+            <li><a href="{{ url_for('admin.view_orders') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.view_orders' }}">
+                <i data-lucide="clipboard-list"></i>
+                <span>View Orders</span>
             </a></li>
             
             <li><a href="{{ url_for('admin.build_load') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.build_load' }}">
@@ -293,6 +293,11 @@
             <li><a href="{{ url_for('admin.manage_addresses') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.manage_addresses' }}">
                 <i data-lucide="map-pin"></i>
                 <span>Addresses</span>
+            </a></li>
+
+            <li><a href="{{ url_for('admin.view_map') }}" class="menu-item {{ 'active' if request.endpoint == 'admin.view_map' }}">
+                <i data-lucide="map"></i>
+                <span>Order Map</span>
             </a></li>
             
             <li class="menu-section">Experimental</li>
