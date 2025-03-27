@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Add Order{% endblock %}
+
+{% block styles %}
+<style>
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .page-header {
+        margin-bottom: 32px;
+    }
+
+    .page-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .form-section {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .form-text {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .contact-preference {
+        display: flex;
+        gap: 16px;
+        margin-top: 8px;
+    }
+
+    .radio-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Add New Order</h1>
+    </div>
+
+    <form method="POST" class="form-section">
+        <div class="form-group">
+            <label class="form-label" for="customer_name">Customer Name *</label>
+            <input type="text" class="form-control" id="customer_name" name="customer_name" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input type="email" class="form-control" id="email" name="email">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="phone">Phone Number</label>
+            <input type="tel" class="form-control" id="phone" name="phone">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="address">Delivery Address *</label>
+            <input type="text" class="form-control" id="address" name="address" required>
+            <div class="checkbox-group">
+                <input type="checkbox" id="is_pickup" name="is_pickup">
+                <label for="is_pickup">This is a pickup order</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="bags_ordered">Number of Bags *</label>
+            <input type="number" class="form-control" id="bags_ordered" name="bags_ordered" min="1" required>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="mulch_type">Mulch Type *</label>
+            <select class="form-control" id="mulch_type" name="mulch_type" required>
+                <option value="">Select Mulch Type</option>
+                <option value="Black Shredded Hardwood">Black Shredded Hardwood</option>
+                <option value="Brown Shredded Hardwood">Brown Shredded Hardwood</option>
+                <option value="Red Shredded Hardwood">Red Shredded Hardwood</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Preferred Contact Method *</label>
+            <div class="contact-preference">
+                <div class="radio-group">
+                    <input type="radio" id="contact_text" name="preferred_contact" value="text" required>
+                    <label for="contact_text">Text</label>
+                </div>
+                <div class="radio-group">
+                    <input type="radio" id="contact_call" name="preferred_contact" value="call">
+                    <label for="contact_call">Call</label>
+                </div>
+                <div class="radio-group">
+                    <input type="radio" id="contact_email" name="preferred_contact" value="email">
+                    <label for="contact_email">Email</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="notes">Delivery Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Special instructions for delivery"></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary">Create Order</button>
+    </form>
+</div>
+
+<script>
+    document.getElementById('is_pickup').addEventListener('change', function() {
+        const addressInput = document.getElementById('address');
+        if (this.checked) {
+            addressInput.value = "{{ config.SCHOOL_ADDRESS }}";
+            addressInput.readOnly = true;
+        } else {
+            addressInput.value = "";
+            addressInput.readOnly = false;
+        }
+    });
+</script>
+{% endblock %} 

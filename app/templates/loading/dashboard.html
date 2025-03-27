@@ -182,96 +182,103 @@
 
     <div class="min-h-screen py-4 sm:py-6">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-            <!-- Header with refresh time -->
-            <div class="mb-6 sm:mb-8">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Loading Dashboard</h1>
-                        <p class="mt-1 sm:mt-2 text-sm text-gray-600">Real-time mulch delivery assignments</p>
-                    </div>
-                    <div class="text-right text-sm text-gray-500">
-                        <p id="last-updated"></p>
-                        <p class="text-xs">Auto-refreshes every minute</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Progress Section -->
-            <div class="progress-section">
-                <div class="progress-header">
-                    <div class="progress-title">
-                        <h2>Delivery Progress</h2>
-                        <span class="progress-stats">{{ status_counts.assigned }} Assigned • {{ status_counts.delivered }} Completed</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {{ '%.1f'|format(progress) }}%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stats Grid -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="package" style="background: #e0f2fe; color: #0369a1;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="total_orders">{{ total_orders }}</div>
-                            <div class="stat-label">Total Orders</div>
-                        </div>
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-4">
+                <!-- Left side info -->
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg sm:text-xl font-bold text-gray-900">Mulch Delivery</h1>
+                    <div class="hidden sm:flex items-center gap-3 text-sm text-gray-600">
+                        <span class="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-md">{{ '%.1f'|format(progress) }}% Complete</span>
+                        <span id="last-updated" class="text-gray-500"></span>
                     </div>
                 </div>
                 
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="truck" style="background: #dcfce7; color: #166534;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="total_bags">{{ total_bags }}</div>
-                            <div class="stat-label">Total Bags</div>
+                <!-- Right side toggle -->
+                <button id="toggleDetails" class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm transition-all duration-200 text-sm sm:text-base">
+                    <i data-lucide="eye"></i>
+                    <span id="toggleText">Hide Details</span>
+                </button>
+            </div>
+
+            <!-- Details Container -->
+            <div id="detailsContainer">
+                <!-- Progress Section -->
+                <div class="progress-section">
+                    <div class="progress-header">
+                        <div class="progress-title">
+                            <h2>Delivery Progress</h2>
+                            <span class="progress-stats">{{ status_counts.assigned }} Assigned • {{ status_counts.delivered }} Completed</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ '%.1f'|format(progress) }}%"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="check-circle" style="background: #f0fdf4; color: #15803d;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="completed_orders">{{ status_counts.delivered }}</div>
-                            <div class="stat-label">Completed Orders</div>
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="package" style="background: #e0f2fe; color: #0369a1;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="total_orders">{{ total_orders }}</div>
+                                <div class="stat-label">Total Orders</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="package-check" style="background: #f0fdf4; color: #15803d;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="completed_bags">{{ completed_bags }}</div>
-                            <div class="stat-label">Delivered Bags</div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="truck" style="background: #dcfce7; color: #166534;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="total_bags">{{ total_bags }}</div>
+                                <div class="stat-label">Total Bags</div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="package-x" style="background: #fef2f2; color: #b91c1c;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="remaining_bags">{{ remaining_bags }}</div>
-                            <div class="stat-label">Remaining Bags</div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="check-circle" style="background: #f0fdf4; color: #15803d;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="completed_orders">{{ status_counts.delivered }}</div>
+                                <div class="stat-label">Completed Orders</div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <i data-lucide="users" style="background: #f0f7ff; color: #1e40af;"></i>
-                        <div>
-                            <div class="stat-value" data-stat="active_drivers">{{ drivers_with_orders|length }}</div>
-                            <div class="stat-label">Active Drivers</div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="package-check" style="background: #f0fdf4; color: #15803d;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="completed_bags">{{ completed_bags }}</div>
+                                <div class="stat-label">Delivered Bags</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="package-x" style="background: #fef2f2; color: #b91c1c;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="remaining_bags">{{ remaining_bags }}</div>
+                                <div class="stat-label">Remaining Bags</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <i data-lucide="users" style="background: #f0f7ff; color: #1e40af;"></i>
+                            <div>
+                                <div class="stat-value" data-stat="active_drivers">{{ drivers_with_orders|length }}</div>
+                                <div class="stat-label">Active Drivers</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
+            
             <!-- Driver Summaries -->
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {% for driver, order_count, total_bags, black_orders, red_orders, brown_orders, black_bags, red_bags, brown_bags in drivers_with_orders %}
@@ -352,8 +359,41 @@
         lucide.createIcons();
     </script>
 
-    <!-- Enhanced refresh functionality -->
+    <!-- Toggle functionality -->
     <script>
+        // DOM elements
+        const toggleButton = document.getElementById('toggleDetails');
+        const toggleText = document.getElementById('toggleText');
+        const detailsContainer = document.getElementById('detailsContainer');
+        const toggleIcon = toggleButton.querySelector('[data-lucide]');
+
+        // Get saved state from localStorage
+        const isVisible = localStorage.getItem('dashboardDetailsVisible') !== 'false';
+        
+        // Function to update UI based on visibility state
+        function updateVisibility(visible) {
+            detailsContainer.style.display = visible ? 'block' : 'none';
+            toggleText.textContent = visible ? 'Hide Details' : 'Show Details';
+            toggleIcon.setAttribute('data-lucide', visible ? 'eye-off' : 'eye');
+            localStorage.setItem('dashboardDetailsVisible', visible);
+            lucide.createIcons(); // Refresh icons
+        }
+
+        // Set initial state
+        updateVisibility(isVisible);
+
+        // Toggle button click handler
+        toggleButton.addEventListener('click', () => {
+            const currentVisibility = detailsContainer.style.display !== 'none';
+            updateVisibility(!currentVisibility);
+        });
+    </script>
+
+    <!-- Enhanced AJAX refresh functionality -->
+    <script>
+        const loadingIndicator = document.getElementById('loading-indicator');
+        let isRefreshing = false;
+
         function updateLastUpdated() {
             const now = new Date();
             document.getElementById('last-updated').textContent = 
@@ -361,34 +401,100 @@
         }
 
         function showLoadingIndicator() {
-            const indicator = document.getElementById('loading-indicator');
-            indicator.style.transform = 'scaleX(1)';
+            loadingIndicator.style.transform = 'scaleX(1)';
         }
 
-        function refresh() {
-            showLoadingIndicator();
-            updateLastUpdated();
-            window.location.reload();
+        function hideLoadingIndicator() {
+            loadingIndicator.style.transform = 'scaleX(0)';
+        }
+
+        async function refreshData() {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            
+            try {
+                showLoadingIndicator();
+                const response = await fetch('/api/dashboard-data');
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                // Update statistics
+                document.querySelector('[data-stat="total_orders"]').textContent = data.total_orders;
+                document.querySelector('[data-stat="total_bags"]').textContent = data.total_bags;
+                document.querySelector('[data-stat="completed_orders"]').textContent = data.status_counts.delivered;
+                document.querySelector('[data-stat="completed_bags"]').textContent = data.completed_bags;
+                document.querySelector('[data-stat="remaining_bags"]').textContent = data.remaining_bags;
+                document.querySelector('[data-stat="active_drivers"]').textContent = data.drivers_with_orders.length;
+
+                // Update progress bar
+                const progressFill = document.querySelector('.progress-fill');
+                progressFill.style.width = `${data.progress}%`;
+                
+                // Update progress stats
+                const progressStats = document.querySelector('.progress-stats');
+                progressStats.textContent = `${data.status_counts.assigned} Assigned • ${data.status_counts.delivered} Completed`;
+
+                // Update driver grid
+                const driverGrid = document.querySelector('.grid.grid-cols-1');
+                driverGrid.innerHTML = data.drivers_html;
+
+                // Reinitialize Lucide icons for new content
+                lucide.createIcons();
+                
+                updateLastUpdated();
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+            } finally {
+                hideLoadingIndicator();
+                isRefreshing = false;
+            }
         }
 
         // Initial update
         updateLastUpdated();
 
-        // Set up auto-refresh
-        setInterval(refresh, 60000); // Refresh every minute
+        // Set up auto-refresh with exponential backoff
+        let refreshInterval = 60000; // Start with 1 minute
+        const maxInterval = 300000; // Max 5 minutes
+        const minInterval = 60000;  // Min 1 minute
 
-        // Add pull-to-refresh for mobile
+        function scheduleNextRefresh() {
+            setTimeout(async () => {
+                try {
+                    await refreshData();
+                    // If successful, reset interval to minimum
+                    refreshInterval = minInterval;
+                } catch (error) {
+                    // If failed, increase interval exponentially
+                    refreshInterval = Math.min(refreshInterval * 1.5, maxInterval);
+                    console.warn('Increased refresh interval to', refreshInterval/1000, 'seconds');
+                }
+                scheduleNextRefresh();
+            }, refreshInterval);
+        }
+
+        scheduleNextRefresh();
+
+        // Add pull-to-refresh for mobile with debounce
         let touchStart = 0;
+        let lastRefresh = 0;
+        const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown
+
         document.addEventListener('touchstart', e => {
             touchStart = e.touches[0].clientY;
         });
 
         document.addEventListener('touchmove', e => {
+            const now = Date.now();
+            if (now - lastRefresh < REFRESH_COOLDOWN) return;
+            
             const touchEnd = e.touches[0].clientY;
             const diff = touchEnd - touchStart;
             
             if (diff > 100 && window.scrollY === 0) {
-                refresh();
+                lastRefresh = now;
+                refreshData();
             }
         });
     </script>

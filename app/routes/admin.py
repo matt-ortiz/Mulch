@@ -1826,147 +1826,41 @@ def export_delivery_data():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
-    school_lat = float(current_app.config['SCHOOL_LATITUDE'])
-    school_lng = float(current_app.config['SCHOOL_LONGITUDE'])
-    
     # Create CSV in memory
     output = StringIO()
     writer = csv.writer(output)
     
-    # Write header
+    # Write header with new column order
     writer.writerow([
-        'Mulch Type',
-        'Route Group',
+        'Order ID',
         'Customer Name',
+        'Mulch Type',
+        'Bags Ordered',
         'Address',
         'Phone',
         'Contact Preference',
-        'Bags Ordered',
         'Instructions',
-        'Miles from School',
-        'Distance to Next Stop',
         'Latitude',
         'Longitude'
     ])
     
-    # Get orders and organize them like in print_cards
-    orders = Order.query.filter(
-        Order.latitude.isnot(None),
-        Order.longitude.isnot(None)
-    ).all()
+    # Get all orders in sequential order
+    orders = Order.query.order_by(Order.id).all()
     
-    # Calculate and add distance from school
+    # Write orders to CSV
     for order in orders:
-        order.distance_from_school = calculate_distance(
-            school_lat, school_lng,
-            order.latitude, order.longitude
-        )
-    
-    # Group by mulch type
-    orders_by_mulch = {}
-    for order in orders:
-        if order.mulch_type not in orders_by_mulch:
-            orders_by_mulch[order.mulch_type] = []
-        orders_by_mulch[order.mulch_type].append(order)
-    
-    # Process each mulch type and its clusters
-    for mulch_type, mulch_orders in orders_by_mulch.items():
-        mulch_orders.sort(key=lambda x: x.distance_from_school)
-        
-        # Create clusters
-        clusters = []
-        unassigned = mulch_orders.copy()
-        max_driving_distance = 3.0
-        
-        while unassigned:
-            current_cluster = []
-            seed_order = unassigned.pop(0)
-            current_cluster.append(seed_order)
-            
-            i = 0
-            while i < len(unassigned):
-                order = unassigned[i]
-                min_distance = float('inf')
-                
-                for cluster_order in current_cluster:
-                    distance = calculate_distance(
-                        cluster_order.latitude, cluster_order.longitude,
-                        order.latitude, order.longitude
-                    )
-                    min_distance = min(min_distance, distance)
-                
-                if min_distance <= max_driving_distance:
-                    current_cluster.append(unassigned.pop(i))
-                else:
-                    i += 1
-            
-            if current_cluster:
-                if len(current_cluster) > 1:
-                    first_order = current_cluster[0]
-                    current_cluster[1:] = sorted(
-                        current_cluster[1:],
-                        key=lambda x: calculate_distance(
-                            first_order.latitude, first_order.longitude,
-                            x.latitude, x.longitude
-                        )
-                    )
-                clusters.append(current_cluster)
-        
-        # Write clusters to CSV
-        for cluster_idx, cluster in enumerate(clusters, 1):
-            for i, order in enumerate(cluster):
-                # Calculate distance to next stop
-                distance_to_next = ''
-                if i < len(cluster) - 1:
-                    distance_to_next = calculate_distance(
-                        order.latitude, order.longitude,
-                        cluster[i + 1].latitude, cluster[i + 1].longitude
-                    )
-                    distance_to_next = f"{distance_to_next:.1f}"
-                
-                writer.writerow([
-                    mulch_type,
-                    f"Route {cluster_idx}",
-                    order.customer_name,
-                    order.address,
-                    f"{order.phone[:3]}-{order.phone[3:6]}-{order.phone[6:]}",
-                    order.preferred_contact,
-                    order.bags_ordered,
-                    order.notes,
-                    f"{order.distance_from_school:.1f}",
-                    distance_to_next,
-                    order.latitude,
-                    order.longitude
-                ])
-            
-            # Add blank row between clusters
-            writer.writerow([])
-    
-    # Add unmatched addresses
-    unmatched = Order.query.filter(
-        (Order.latitude.is_(None)) | 
-        (Order.longitude.is_(None))
-    ).all()
-    
-    if unmatched:
-        writer.writerow(['UNMATCHED ADDRESSES'])
-        writer.writerow([])  # blank row
-        
-        for order in unmatched:
-            writer.writerow([
-                order.mulch_type,
-                'NEEDS VERIFICATION',
-                order.customer_name,
-                order.address,
-                f"{order.phone[:3]}-{order.phone[3:6]}-{order.phone[6:]}",
-                order.preferred_contact,
-                order.bags_ordered,
-                order.notes,
-                '',  # No distance from school
-                '',  # No distance to next
-                '',  # No latitude
-                ''   # No longitude
-            ])
+        writer.writerow([
+            order.id,
+            order.customer_name,
+            order.mulch_type,
+            order.bags_ordered,
+            order.address,
+            f"{order.phone[:3]}-{order.phone[3:6]}-{order.phone[6:]}" if order.phone else '',
+            order.preferred_contact,
+            order.notes,
+            order.latitude,
+            order.longitude
+        ])
     
     # Create the response
     output.seek(0)
@@ -1974,7 +1868,7 @@ def export_delivery_data():
         output.getvalue(),
         mimetype='text/csv',
         headers={
-            'Content-Disposition': 'attachment; filename=delivery_routes.csv'
+            'Content-Disposition': 'attachment; filename=delivery_orders.csv'
         }
     )
 
@@ -2361,3 +2255,38 @@ def unassign_driver(order_id):
         db.session.rollback()
         print(f"Error unassigning driver: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@admin_routes.route('/add-order', methods=['GET', 'POST'])
+@login_required
+def add_order():
+    if not current_user.is_admin:
+        return redirect(url_for('main.index'))
+    
+    if request.method == 'POST':
+        try:
+            # Create new order
+            order = Order(
+                customer_name=request.form['customer_name'].strip(),
+                email=request.form.get('email', '').strip(),
+                address=request.form['address'].strip(),
+                phone=request.form.get('phone', '').strip(),
+                bags_ordered=int(request.form['bags_ordered']),
+                mulch_type=request.form['mulch_type'].strip(),
+                notes=request.form.get('notes', '').strip(),
+                preferred_contact=request.form['preferred_contact'],
+                is_pickup=bool(request.form.get('is_pickup')),
+                year=datetime.now().year
+            )
+            
+            db.session.add(order)
+            db.session.commit()
+            
+            flash('Order created successfully!', 'success')
+            return redirect(url_for('admin.view_orders'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating order: {str(e)}', 'error')
+            return redirect(url_for('admin.add_order'))
+    
+    return render_template('admin/add-order.html')

@@ -1,0 +1,69 @@
+{% for driver, order_count, total_bags, black_orders, red_orders, brown_orders, black_bags, red_bags, brown_bags in drivers_with_orders %}
+<div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div class="p-4 sm:p-6">
+        <!-- Driver Header -->
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg sm:text-xl font-bold text-gray-900">{{ driver.first_name }}</h3>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-800">
+                {{ order_count }} orders | {{ total_bags }} bags
+            </span>
+        </div>
+
+        <!-- Mulch Type Summary -->
+        <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+            {% if brown_orders > 0 %}
+            <!-- Brown Mulch Summary -->
+            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-brown">
+                <p class="text-sm font-medium">Brown</p>
+                <p class="text-lg sm:text-xl font-bold mt-1">{{ brown_bags }}</p>
+                <p class="text-xs opacity-75">{{ brown_orders }} orders</p>
+            </div>
+            {% endif %}
+
+            {% if black_orders > 0 %}
+            <!-- Black Mulch Summary -->
+            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-black">
+                <p class="text-sm font-medium">Black</p>
+                <p class="text-lg sm:text-xl font-bold mt-1">{{ black_bags }}</p>
+                <p class="text-xs opacity-75">{{ black_orders }} orders</p>
+            </div>
+            {% endif %}
+
+            {% if red_orders > 0 %}
+            <!-- Red Mulch Summary -->
+            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-red">
+                <p class="text-sm font-medium">Red</p>
+                <p class="text-lg sm:text-xl font-bold mt-1">{{ red_bags }}</p>
+                <p class="text-xs opacity-75">{{ red_orders }} orders</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Order Details -->
+        <div class="mt-4 sm:mt-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-2 sm:mb-3">Order Details</h4>
+            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                {% for order in driver_orders[driver.id] %}
+                <div class="flex items-center justify-between p-2 sm:p-3 rounded-lg
+                    {% if order.mulch_type == 'Black Shredded Hardwood' %}mulch-black
+                    {% elif order.mulch_type == 'Red Shredded Hardwood' %}mulch-red
+                    {% else %}mulch-brown{% endif %}">
+                    <div class="driver-order-details">
+                        <p class="text-sm font-medium">Order #{{ order.id }} <span>{{ order.customer_name.split(',')[0] if ',' in order.customer_name else order.customer_name.split()[-1] }}</span></p>
+                        <p class="text-xs opacity-75">
+                            {{ order.mulch_type.replace(' Shredded Hardwood', '') }} Mulch
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                        {% if order.mulch_type == 'Black Shredded Hardwood' %}bg-gray-700 text-white
+                        {% elif order.mulch_type == 'Red Shredded Hardwood' %}bg-[#8B4513] text-white
+                        {% else %}bg-[#DEB887] text-black{% endif %}">
+                        {{ order.bags_ordered }} bags
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %} 

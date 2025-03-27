@@ -7,8 +7,24 @@ load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
+    
+    # Database configuration with connection pooling and SSL settings
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-    'postgresql://postgres:zaq12wsx@10.5.0.50/mulch'
+        'postgresql://postgres:zaq12wsx@10.5.0.50/mulch'
+    
+    # Add SSL mode to database URL if not already present
+    # if 'sslmode=' not in SQLALCHEMY_DATABASE_URI:
+    #     SQLALCHEMY_DATABASE_URI += '?sslmode=require'
+    
+    # SQLAlchemy connection pool settings
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,  # Maximum number of connections to keep persistently
+        'pool_timeout': 30,  # Seconds to wait before giving up on getting a connection
+        'pool_recycle': 1800,  # Recycle connections after 30 minutes
+        'max_overflow': 2,  # Allow up to 2 connections beyond pool_size
+        'pool_pre_ping': True,  # Enable connection health checks
+    }
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     REMEMBER_COOKIE_DURATION = timedelta(days=14)
     

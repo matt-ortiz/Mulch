@@ -8,7 +8,7 @@ auth = Blueprint('auth', __name__)
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = request.form.get('username').lower()  # Convert to lowercase
         password = request.form.get('password')
         
         # First try to find user with exact username/email
