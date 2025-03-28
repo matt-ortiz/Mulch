@@ -87,16 +87,25 @@
 
     .popup-content {
         font-size: 14px;
+        min-width: 200px;
+        max-width: 280px;
     }
 
     .popup-content h3 {
         margin-bottom: 8px;
         color: #1e40af;
+        font-size: 16px;
+        word-break: break-word;
     }
 
     .popup-info {
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         color: #64748b;
+        line-height: 1.4;
+    }
+
+    .popup-info div {
+        margin-bottom: 4px;
     }
 
     .popup-actions {
@@ -106,16 +115,39 @@
     }
 
     .popup-btn {
-        padding: 8px;
+        padding: 10px;
         border-radius: 6px;
         border: none;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 500;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 6px;
+        width: 100%;
+        touch-action: manipulation;
+    }
+
+    /* Make buttons easier to tap on mobile */
+    @media (max-width: 768px) {
+        .popup-btn {
+            padding: 12px;
+            font-size: 15px;
+        }
+        
+        .popup-content {
+            max-width: 300px;
+        }
+        
+        .leaflet-popup-content {
+            margin: 16px;
+        }
+    }
+
+    .popup-btn i {
+        width: 18px;
+        height: 18px;
     }
 
     .popup-btn-navigate {
@@ -163,6 +195,26 @@
         height: 12px;
         border-radius: 50%;
         border: 2px solid;
+    }
+
+    /* School marker styles */
+    .school-marker {
+        background: #1e40af;
+        border: 3px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .school-popup {
+        font-weight: 600;
+        color: #1e40af;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .school-popup i {
+        width: 18px;
+        height: 18px;
     }
 </style>
 {% endblock %}
@@ -241,6 +293,31 @@ document.addEventListener('DOMContentLoaded', function() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    // Add school marker
+    {% if settings.school_latitude and settings.school_longitude %}
+    const schoolMarker = L.circleMarker(
+        [{{ settings.school_latitude }}, {{ settings.school_longitude }}],
+        {
+            radius: 12,
+            fillColor: '#1e40af',
+            color: '#ffffff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.9,
+            className: 'school-marker'
+        }
+    ).addTo(map);
+
+    const schoolPopup = `
+        <div class="school-popup">
+            <i class="lucide-building"></i>
+            <span>{{ settings.school_address }}</span>
+        </div>
+    `;
+    schoolMarker.bindPopup(schoolPopup);
+    markers.push(schoolMarker);
+    {% endif %}
+
     {% for delivery in deliveries %}
     (function() {
         const marker = L.circleMarker(
@@ -303,7 +380,28 @@ function callCustomer(phone) {
 }
 
 function navigate(address) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+    const mapPreference = '{{ current_user.map_preference }}';
+    let navigationUrl;
+    
+    switch (mapPreference) {
+        case 'waze':
+            navigationUrl = `https://waze.com/ul?q=${encodeURIComponent(address)}`;
+            break;
+        case 'apple_maps':
+            // Try deep linking to Apple Maps app first, fallback to web version
+            navigationUrl = `maps://maps.apple.com/?q=${encodeURIComponent(address)}`;
+            // After a short delay, if the app didn't open, try the web version
+            setTimeout(() => {
+                window.location.href = `http://maps.apple.com/?q=${encodeURIComponent(address)}`;
+            }, 500);
+            break;
+        case 'google_maps':
+        default:
+            navigationUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+            break;
+    }
+    
+    window.open(navigationUrl);
 }
 
 function markComplete(deliveryId) {

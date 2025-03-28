@@ -571,7 +571,7 @@ def manage_drivers():
     if not current_user.is_admin:
         return redirect(url_for('main.index'))
     
-    drivers = User.query.filter_by(is_admin=False).all()
+    drivers = User.query.filter_by(is_admin=False).order_by(User.first_name.asc()).all()
     return render_template('admin/manage_drivers.html', drivers=drivers)
 
 @admin_routes.route('/view-map')
@@ -934,19 +934,23 @@ def get_driver_details(driver_id):
     if not current_user.is_admin:
         return jsonify({'error': 'Unauthorized'}), 403
         
-    driver = User.query.get_or_404(driver_id)
-    completed_deliveries = Delivery.query.filter_by(
-        driver_id=driver_id,
-        status='delivered'
-    ).all()
-    
-    total_bags = sum(d.order.bags_ordered for d in completed_deliveries)
-    
-    recent_deliveries = [{
-        'customer_name': d.order.customer_name,
-        'bags': d.order.bags_ordered,
-        'date': d.delivered_at.isoformat() if d.delivered_at else None
-    } for d in completed_deliveries[-5:]]  # Get last 5 deliveries
+    # Get driver with deliveries and orders joined
+    driver = User.query\
+        .options(joinedload(User.deliveries).joinedload(Delivery.order))\
+        .get(driver_id)
+        
+    if not driver:
+        return jsonify({'error': 'Driver not found'}), 404
+        
+    # Get recent deliveries
+    recent_deliveries = []
+    for delivery in driver.deliveries:
+        if delivery.order:
+            recent_deliveries.append({
+                'customer_name': delivery.order.customer_name,
+                'bags': delivery.order.bags_ordered,
+                'date': delivery.assigned_at.isoformat() if delivery.assigned_at else None
+            })
     
     return jsonify({
         'id': driver.id,
@@ -954,8 +958,7 @@ def get_driver_details(driver_id):
         'email': driver.email,
         'vehicle_capacity': driver.vehicle_capacity,
         'is_admin': driver.is_admin,
-        'total_deliveries': len(completed_deliveries),
-        'total_bags': total_bags,
+        'map_preference': driver.map_preference,
         'recent_deliveries': recent_deliveries
     })
 
@@ -965,15 +968,24 @@ def update_driver(driver_id):
     if not current_user.is_admin:
         return jsonify({'error': 'Unauthorized'}), 403
         
-    driver = User.query.get_or_404(driver_id)
     data = request.get_json()
+    driver = User.query.get(driver_id)
     
-    driver.first_name = data['first_name']
-    driver.email = data['email'] if data['email'] else f"{data['first_name'].lower()}@driver"
-    driver.vehicle_capacity = int(data['vehicle_capacity'])
-    driver.is_admin = data['is_admin']
-    
+    if not driver:
+        return jsonify({'error': 'Driver not found'}), 404
+        
     try:
+        driver.first_name = data.get('first_name', driver.first_name)
+        # Handle email - use default if not provided
+        email = data.get('email')
+        if not email:
+            email = f"{driver.first_name.lower()}@driver"
+        driver.email = email
+        
+        driver.vehicle_capacity = int(data.get('vehicle_capacity', 0))
+        driver.is_admin = data.get('is_admin', False)
+        driver.map_preference = data.get('map_preference', 'google_maps')
+        
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -1087,21 +1099,32 @@ def create_driver():
         
     data = request.get_json()
     
-    # Generate email if not provided
-    email = data['email'] if data['email'] else f"{data['first_name'].lower()}@driver"
-    
-    # Create new driver
-    driver = User(
-        first_name=data['first_name'],
-        email=email,
-        vehicle_capacity=int(data['vehicle_capacity']),
-        is_admin=data['is_admin']
-    )
-    
     try:
+        # Generate email if not provided
+        email = data.get('email')
+        if not email:
+            email = f"{data.get('first_name', '').lower()}@driver"
+        
+        # Create new driver
+        driver = User(
+            first_name=data.get('first_name'),
+            email=email,
+            vehicle_capacity=int(data.get('vehicle_capacity', 0)),
+            is_admin=data.get('is_admin', False),
+            map_preference=data.get('map_preference', 'google_maps')
+        )
+        
+        # Set password based on email
+        driver.set_password(email.split('@')[0])
+        
         db.session.add(driver)
         db.session.commit()
-        return jsonify({'success': True})
+        
+        return jsonify({
+            'success': True,
+            'driver_id': driver.id
+        })
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

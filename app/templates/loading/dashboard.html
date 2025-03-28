@@ -174,6 +174,35 @@
                 font-size: 11px;
             }
         }
+
+        /* Add styles for the load button states */
+        .load-toggle {
+            background-color: #e5e7eb;
+            color: #374151;
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+        .load-toggle.loaded {
+            background-color: #34d399;
+            color: white;
+        }
+        .card-loaded .details-section {
+            display: none;
+        }
+        .delivery-status {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: #059669;
+        }
+        .card-loaded .delivery-status {
+            display: block;
+        }
+        .delivery-status i {
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -281,72 +310,95 @@
             
             <!-- Driver Summaries -->
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                {% for driver, order_count, total_bags, black_orders, red_orders, brown_orders, black_bags, red_bags, brown_bags in drivers_with_orders %}
+                {% for driver, order_count, total_bags, black_orders, red_orders, brown_orders, black_bags, red_bags, brown_bags, latest_assignment_time in drivers_with_orders %}
                 <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
                     <div class="p-4 sm:p-6">
                         <!-- Driver Header -->
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg sm:text-xl font-bold text-gray-900">{{ driver.first_name }}</h3>
+                            <div class="flex flex-col">
+                                <h3 class="text-lg sm:text-xl font-bold text-gray-900">{{ driver.first_name }}</h3>
+                                {% if latest_assignment_time %}
+                                <span class="text-xs text-gray-500">Assigned {{ latest_assignment_time.strftime('%-I:%M%p').lower() }}</span>
+                                {% endif %}
+                            </div>
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-800">
                                 {{ order_count }} orders | {{ total_bags }} bags
                             </span>
                         </div>
 
-                        <!-- Mulch Type Summary -->
-                        <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
-                            {% if brown_orders > 0 %}
-                            <!-- Brown Mulch Summary -->
-                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-brown">
-                                <p class="text-sm font-medium">Brown</p>
-                                <p class="text-lg sm:text-xl font-bold mt-1">{{ brown_bags }}</p>
-                                <p class="text-xs opacity-75">{{ brown_orders }} orders</p>
-                            </div>
-                            {% endif %}
-
-                            {% if black_orders > 0 %}
-                            <!-- Black Mulch Summary -->
-                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-black">
-                                <p class="text-sm font-medium">Black</p>
-                                <p class="text-lg sm:text-xl font-bold mt-1">{{ black_bags }}</p>
-                                <p class="text-xs opacity-75">{{ black_orders }} orders</p>
-                            </div>
-                            {% endif %}
-
-                            {% if red_orders > 0 %}
-                            <!-- Red Mulch Summary -->
-                            <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-red">
-                                <p class="text-sm font-medium">Red</p>
-                                <p class="text-lg sm:text-xl font-bold mt-1">{{ red_bags }}</p>
-                                <p class="text-xs opacity-75">{{ red_orders }} orders</p>
-                            </div>
-                            {% endif %}
-                        </div>
-
-                        <!-- Order Details -->
-                        <div class="mt-4 sm:mt-6">
-                            <h4 class="text-sm font-semibold text-gray-900 mb-2 sm:mb-3">Order Details</h4>
-                            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                                {% for order in driver_orders[driver.id] %}
-                                <div class="flex items-center justify-between p-2 sm:p-3 rounded-lg
-                                    {% if order.mulch_type == 'Black Shredded Hardwood' %}mulch-black
-                                    {% elif order.mulch_type == 'Red Shredded Hardwood' %}mulch-red
-                                    {% else %}mulch-brown{% endif %}">
-                                    <div class="driver-order-details">
-                                        <p class="text-sm font-medium">Order #{{ order.id }} <span>{{ order.customer_name.split(',')[0] if ',' in order.customer_name else order.customer_name.split()[-1] }}</span></p>
-                                        <p class="text-xs opacity-75">
-                                            {{ order.mulch_type.replace(' Shredded Hardwood', '') }} Mulch
-                                        </p>
-                                    </div>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                        {% if order.mulch_type == 'Black Shredded Hardwood' %}bg-gray-700 text-white
-                                        {% elif order.mulch_type == 'Red Shredded Hardwood' %}bg-[#8B4513] text-white
-                                        {% else %}bg-[#DEB887] text-black{% endif %}">
-                                        {{ order.bags_ordered }} bags
-                                    </span>
+                        <div class="details-section">
+                            <!-- Mulch Type Summary -->
+                            <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+                                {% if brown_orders > 0 %}
+                                <!-- Brown Mulch Summary -->
+                                <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-brown">
+                                    <p class="text-sm font-medium">Brown</p>
+                                    <p class="text-lg sm:text-xl font-bold mt-1">{{ brown_bags }}</p>
+                                    <p class="text-xs opacity-75">{{ brown_orders }} orders</p>
                                 </div>
-                                {% endfor %}
+                                {% endif %}
+
+                                {% if black_orders > 0 %}
+                                <!-- Black Mulch Summary -->
+                                <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-black">
+                                    <p class="text-sm font-medium">Black</p>
+                                    <p class="text-lg sm:text-xl font-bold mt-1">{{ black_bags }}</p>
+                                    <p class="text-xs opacity-75">{{ black_orders }} orders</p>
+                                </div>
+                                {% endif %}
+
+                                {% if red_orders > 0 %}
+                                <!-- Red Mulch Summary -->
+                                <div class="flex flex-col items-center p-2 sm:p-3 rounded-lg mulch-red">
+                                    <p class="text-sm font-medium">Red</p>
+                                    <p class="text-lg sm:text-xl font-bold mt-1">{{ red_bags }}</p>
+                                    <p class="text-xs opacity-75">{{ red_orders }} orders</p>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Order Details -->
+                            <div class="mt-4 sm:mt-6">
+                                <h4 class="text-sm font-semibold text-gray-900 mb-2 sm:mb-3">Order Details</h4>
+                                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                    {% for order in driver_orders[driver.id] %}
+                                    <div class="flex items-center justify-between p-2 sm:p-3 rounded-lg
+                                        {% if order.mulch_type == 'Black Shredded Hardwood' %}mulch-black
+                                        {% elif order.mulch_type == 'Red Shredded Hardwood' %}mulch-red
+                                        {% else %}mulch-brown{% endif %}">
+                                        <div class="driver-order-details">
+                                            <p class="text-sm font-medium">Order #{{ order.id }} <span>{{ order.customer_name.split(',')[0] if ',' in order.customer_name else order.customer_name.split()[-1] }}</span></p>
+                                            <p class="text-xs opacity-75">
+                                                {{ order.mulch_type.replace(' Shredded Hardwood', '') }} Mulch
+                                            </p>
+                                        </div>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                            {% if order.mulch_type == 'Black Shredded Hardwood' %}bg-gray-700 text-white
+                                            {% elif order.mulch_type == 'Red Shredded Hardwood' %}bg-[#8B4513] text-white
+                                            {% else %}bg-[#DEB887] text-black{% endif %}">
+                                            {{ order.bags_ordered }} bags
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
+
+                        <!-- Out for Delivery Status -->
+                        <div class="delivery-status">
+                            <i data-lucide="truck" class="w-12 h-12 mx-auto text-green-600"></i>
+                            <p class="text-lg font-semibold">Out for Delivery</p>
+                            <p class="text-sm text-gray-600 mt-1">{{ total_bags }} bags loaded</p>
+                        </div>
+
+                        <!-- Load Toggle Button -->
+                        <button 
+                            class="load-toggle rounded-lg text-sm font-medium transition-colors duration-200"
+                            data-driver-id="{{ driver.id }}"
+                            data-order-ids='{{ driver_orders[driver.id] | map(attribute="id") | list | tojson }}'
+                            onclick="toggleDriverLoaded(this)">
+                            Order Loaded
+                        </button>
                     </div>
                 </div>
                 {% endfor %}
@@ -497,6 +549,70 @@
                 refreshData();
             }
         });
+    </script>
+
+    <!-- Add Local Storage Management for Loaded Orders -->
+    <script>
+        // Initialize loaded orders from localStorage
+        let loadedOrders = new Set(JSON.parse(localStorage.getItem('loadedOrders') || '[]'));
+
+        // Function to toggle loaded state for all driver's orders
+        function toggleDriverLoaded(button) {
+            const driverCard = button.closest('.bg-white');
+            const orderIds = JSON.parse(button.dataset.orderIds);
+            
+            const allOrdersLoaded = orderIds.every(id => loadedOrders.has(id.toString()));
+            
+            if (allOrdersLoaded) {
+                // Unmark all as loaded
+                orderIds.forEach(id => loadedOrders.delete(id.toString()));
+                button.textContent = 'Order Loaded';
+                button.classList.remove('loaded');
+                driverCard.classList.remove('card-loaded');
+            } else {
+                // Mark all as loaded
+                orderIds.forEach(id => loadedOrders.add(id.toString()));
+                button.textContent = 'Undo Loaded';
+                button.classList.add('loaded');
+                driverCard.classList.add('card-loaded');
+            }
+
+            // Save to localStorage
+            localStorage.setItem('loadedOrders', JSON.stringify([...loadedOrders]));
+        }
+
+        // Apply loaded states on page load
+        function applyLoadedStates() {
+            document.querySelectorAll('.load-toggle').forEach(button => {
+                const driverCard = button.closest('.bg-white');
+                const orderIds = JSON.parse(button.dataset.orderIds);
+                
+                const allOrdersLoaded = orderIds.every(id => loadedOrders.has(id.toString()));
+                
+                if (allOrdersLoaded) {
+                    button.textContent = 'Undo Loaded';
+                    button.classList.add('loaded');
+                    driverCard.classList.add('card-loaded');
+                } else {
+                    button.textContent = 'Order Loaded';
+                    button.classList.remove('loaded');
+                    driverCard.classList.remove('card-loaded');
+                }
+            });
+        }
+
+        // Apply states on initial load
+        applyLoadedStates();
+
+        // Add handler for page refresh to maintain states
+        document.addEventListener('DOMContentLoaded', applyLoadedStates);
+
+        // Modify the existing refresh function to maintain loaded states
+        const originalRefreshData = refreshData;
+        refreshData = async function() {
+            await originalRefreshData();
+            applyLoadedStates();
+        };
     </script>
 </body>
 </html> 

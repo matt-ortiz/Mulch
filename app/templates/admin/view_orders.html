@@ -240,6 +240,21 @@
     .sort-asc .sort-icon {
         transform: rotate(180deg);
     }
+
+    /* Add styling for driver info */
+    .driver-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        font-size: 13px;
+        color: #64748b;
+    }
+
+    .driver-info i {
+        width: 14px;
+        height: 14px;
+    }
 </style>
 {% endblock %}
 
@@ -355,6 +370,12 @@
                     <span class="status-badge status-{{ order.delivery.status }}">
                         {{ order.delivery.status|title }}
                     </span>
+                    {% if order.delivery.status == 'assigned' and order.delivery.driver %}
+                    <div class="driver-info">
+                        <i class="lucide-truck"></i>
+                        {{ order.delivery.driver.first_name }}
+                    </div>
+                    {% endif %}
                     {% else %}
                     <span class="status-badge status-pending">Pending</span>
                     {% endif %}

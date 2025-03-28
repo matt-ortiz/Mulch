@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
-from app.models import Order, Delivery
+from app.models import Order, Delivery, Settings
 from app import db
 from datetime import datetime
 import json
@@ -47,12 +47,11 @@ def complete_delivery(delivery_id):
 @driver_bp.route('/route')
 @login_required
 def view_route():
-    # Get active deliveries for map view
-    deliveries = Delivery.query.filter_by(
-        driver_id=current_user.id,
-        status='assigned'
-    ).all()
-    return render_template('driver/route.html', deliveries=deliveries)
+    deliveries = Delivery.query.filter_by(driver_id=current_user.id).all()
+    settings = Settings.query.first()
+    return render_template('driver/route.html', 
+                         deliveries=deliveries,
+                         settings=settings)
 
 @driver_bp.route('/updates')
 @login_required

@@ -1097,6 +1097,26 @@ function assignLoad() {
                 }
             });
             
+            // Update driver card status
+            const driverCard = document.querySelector(`.driver-card[data-id="${selectedDriver}"]`);
+            if (driverCard) {
+                // Add has-pending class
+                driverCard.classList.add('has-pending');
+                
+                // Update status indicator and text
+                const statusDiv = driverCard.querySelector('.driver-status');
+                if (statusDiv) {
+                    const currentPendingText = statusDiv.textContent.trim();
+                    const currentPendingCount = parseInt(currentPendingText.match(/\d+/) || [0]);
+                    const newPendingCount = currentPendingCount + selectedOrders.size;
+                    
+                    statusDiv.innerHTML = `
+                        <span class="status-indicator status-busy"></span>
+                        ${newPendingCount} pending deliveries
+                    `;
+                }
+            }
+            
             // Clear selection
             selectedOrders.clear();
             selectedDriver = null;

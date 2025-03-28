@@ -45,6 +45,7 @@ def loading_dashboard():
                  .join(Delivery)
                  .filter(Delivery.driver_id == driver.id)
                  .filter(Delivery.status != 'delivered')
+                 .order_by(Delivery.assigned_at.desc())  # Sort by newest first
                  .all())
         
         if orders:  # Only include drivers with active orders
@@ -60,6 +61,15 @@ def loading_dashboard():
             total_driver_bags = black_bags + red_bags + brown_bags
             total_driver_orders = len(orders)
             
+            # Get the most recent assignment time for this driver
+            latest_assignment = (Delivery.query
+                               .filter(Delivery.driver_id == driver.id)
+                               .filter(Delivery.status != 'delivered')
+                               .order_by(Delivery.assigned_at.desc())
+                               .first())
+            
+            latest_assignment_time = latest_assignment.assigned_at if latest_assignment else None
+            
             drivers_with_orders.append((
                 driver,
                 total_driver_orders,
@@ -69,10 +79,14 @@ def loading_dashboard():
                 brown_orders,
                 black_bags,
                 red_bags,
-                brown_bags
+                brown_bags,
+                latest_assignment_time  # Add assignment time to the tuple
             ))
             
             driver_orders[driver.id] = orders
+    
+    # Sort drivers by their most recent assignment time (newest first)
+    drivers_with_orders.sort(key=lambda x: (x[9] is None, x[9] or datetime.min), reverse=True)
     
     return render_template('loading/dashboard.html',
                          total_orders=total_orders,

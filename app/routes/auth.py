@@ -53,6 +53,7 @@ def register():
         first_name = request.form.get('first_name')
         vehicle_capacity = request.form.get('vehicle_capacity')
         driver_code = request.form.get('driver_code')
+        map_preference = request.form.get('map_preference', 'google_maps')
         
         if driver_code != settings.driver_code:
             flash('Invalid driver code')
@@ -70,7 +71,8 @@ def register():
             first_name=first_name,
             email=f"{username}@driver",
             vehicle_capacity=vehicle_capacity,
-            is_admin=False  # Ensure drivers are not admin
+            is_admin=False,  # Ensure drivers are not admin
+            map_preference=map_preference  # Add map preference
         )
         # Don't store password for drivers
         

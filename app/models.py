@@ -12,6 +12,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=True)  # Increased length to 256
     vehicle_capacity = db.Column(db.Integer)  # Number of bags that fit in their vehicle
     is_admin = db.Column(db.Boolean, default=False)
+    map_preference = db.Column(db.String(20), nullable=False, default='google_maps')
     deliveries = db.relationship('Delivery', backref='driver', lazy=True)
 
     def set_password(self, password):

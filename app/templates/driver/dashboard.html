@@ -634,7 +634,28 @@
     }
 
     function navigate(address) {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+        const mapPreference = '{{ current_user.map_preference }}';
+        let navigationUrl;
+        
+        switch (mapPreference) {
+            case 'waze':
+                navigationUrl = `https://waze.com/ul?q=${encodeURIComponent(address)}`;
+                break;
+            case 'apple_maps':
+                // Try deep linking to Apple Maps app first, fallback to web version
+                navigationUrl = `maps://maps.apple.com/?q=${encodeURIComponent(address)}`;
+                // After a short delay, if the app didn't open, try the web version
+                setTimeout(() => {
+                    window.location.href = `http://maps.apple.com/?q=${encodeURIComponent(address)}`;
+                }, 500);
+                break;
+            case 'google_maps':
+            default:
+                navigationUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+                break;
+        }
+        
+        window.open(navigationUrl);
     }
 
     function markComplete(deliveryId) {
