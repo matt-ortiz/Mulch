@@ -2147,7 +2147,7 @@ def toggle_delivery_status(order_id):
     else:
         # Toggle the status
         if delivery.status == 'delivered':
-            delivery.status = 'pending'
+            delivery.status = 'assigned'
             delivery.delivered_at = None
         else:
             delivery.status = 'delivered'
@@ -2175,6 +2175,7 @@ def view_orders():
     status = request.args.get('status', 'all')
     mulch_type = request.args.get('mulch_type', 'all')
     delivery_type = request.args.get('delivery_type', 'all')
+    driver_id = request.args.get('driver_id', 'all')  # Add driver filter
     year = request.args.get('year', datetime.now().year)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
@@ -2202,12 +2203,18 @@ def view_orders():
     if delivery_type != 'all':
         query = query.filter(Order.is_pickup == (delivery_type == 'pickup'))
     
+    if driver_id != 'all':  # Add driver filter logic
+        query = query.join(Delivery).filter(Delivery.driver_id == driver_id)
+    
     if year:
         query = query.filter(Order.year == year)
     
     # Get unique mulch types for filter dropdown
     mulch_types = db.session.query(Order.mulch_type.distinct()).all()
     mulch_types = [t[0] for t in mulch_types]
+    
+    # Get all drivers for filter dropdown
+    drivers = User.query.filter_by(is_admin=False).all()
     
     # Get total count before pagination
     total_count = query.count()
@@ -2245,6 +2252,8 @@ def view_orders():
         status=status,
         mulch_type=mulch_type,
         delivery_type=delivery_type,
+        driver_id=driver_id,  # Add driver_id to template context
+        drivers=drivers,  # Add drivers to template context
         year=year,
         mulch_types=mulch_types,
         total_count=total_count,

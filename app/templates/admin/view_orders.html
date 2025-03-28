@@ -289,6 +289,13 @@
             <option value="pickup" {% if delivery_type == 'pickup' %}selected{% endif %}>Pickup</option>
         </select>
 
+        <select class="filter-select" onchange="updateFilters()" name="driver_id">
+            <option value="all" {% if driver_id == 'all' %}selected{% endif %}>All Drivers</option>
+            {% for driver in drivers %}
+            <option value="{{ driver.id }}" {% if driver_id|string == driver.id|string %}selected{% endif %}>{{ driver.first_name }}</option>
+            {% endfor %}
+        </select>
+
         <select class="filter-select" onchange="updateFilters()" name="status">
             <option value="all" {% if status=='all' %}selected{% endif %}>All Status</option>
             <option value="pending" {% if status=='pending' %}selected{% endif %}>Pending</option>
@@ -437,6 +444,7 @@ function updateFilters() {
     const statusSelect = document.querySelector('select[name="status"]');
     const mulchSelect = document.querySelector('select[name="mulch_type"]');
     const deliverySelect = document.querySelector('select[name="delivery_type"]');
+    const driverSelect = document.querySelector('select[name="driver_id"]');
     const yearSelect = document.querySelector('select[name="year"]');
     
     const params = new URLSearchParams(window.location.search);
@@ -452,6 +460,9 @@ function updateFilters() {
     
     if (deliverySelect.value !== 'all') params.set('delivery_type', deliverySelect.value);
     else params.delete('delivery_type');
+    
+    if (driverSelect.value !== 'all') params.set('driver_id', driverSelect.value);
+    else params.delete('driver_id');
     
     if (yearSelect.value) params.set('year', yearSelect.value);
     else params.delete('year');
